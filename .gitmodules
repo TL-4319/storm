@@ -1,0 +1,4 @@
+[submodule "carbs"]
+	path = carbs
+	url = git@github.com:drjdlarson/carbs.git
+	branch = ggiw-dev
