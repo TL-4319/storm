@@ -8,7 +8,7 @@ To facilitate development of STORM which requires concurrent development in CARB
 Clone the repository locally on your computer, using
 
 ```
-git clone --recurse-submodules git@github.com:TL-4319/storm.git
+git clone --recurse-submodules https://github.com/TL-4319/storm.git
 ```
 
 For windows it is recommended to clone it within your linux subsystem directory (e.g. a sub-directory of your linux home folder) to improve performance within the container (the linux directories on Windows can be accessed through the file browser by typing ```\\wsl$``` in the address bar and clicking on your distro).
