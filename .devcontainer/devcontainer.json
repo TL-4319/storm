@@ -15,9 +15,19 @@
 				// sphinx/restructured text
 				"lextudio.restructuredtext",
 				"trond-snekvik.simple-rst"
-			]
+			],
+
+			"containerUser": "user",
+			"containerEnv": {
+			"LOCAL_USER_ID": "${localEnv:UID}"
+			},
+			"settings": {
+				"terminal.integrated.shell.linux": "/bin/bash"
+			}
 		}
-	}
+	},
+
+	
 	
 	// Use 'postCreateCommand' to run commands after the container is created.
 	//"postCreateCommand": "bash"
