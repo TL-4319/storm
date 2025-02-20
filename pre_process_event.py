@@ -1,6 +1,8 @@
 # Tuan Luong
 # 02/19/2025
 
+# Geolocation and transformation script and ISS LIS constant obtained from Timuthy Lang
+
 import numpy as np
 from netCDF4 import Dataset
 import cv2 as cv
@@ -10,14 +12,12 @@ import pickle
 
 ##### Input params here
 # Input orbit granule
-granules = "20231101_151645"
+granules = "20231101_195517"
 dt = 0.1
-img_size = (128,128)
 video_size = (300, 300) # Video is resized for clarity. Measurements vectors are kept in 128x128 size
 
-
 ##### The rest of the scrip
-#
+img_size = (128,128)
 if not os.path.isdir("dataset/"+granules):
     # Create dir for pre process data if it didn't exist
     os.mkdir("dataset/"+granules)

@@ -4,7 +4,7 @@ import cv2 as cv
 import os
 
 # 
-granules = "20231101_151645"
+granules = "20231101_195517"
 video_size = (300,300) # Video is resized for clarity. Measurements vectors are kept in 128x128 size
 dt = 10
 
