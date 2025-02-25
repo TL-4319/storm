@@ -35,7 +35,7 @@ RUN apt-get update \
         latexmk \
         texlive-latex-extra \
         tex-gyre \
-        librsvg2-bin \
+        librsvg2-bin \ 
     && rm -rf /var/lib/apt/lists/*
 
 
