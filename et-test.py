@@ -15,11 +15,16 @@ import carbs.extended_targets.GGIW_Serums_Models as gmodels
 
 DEG2RAD = 0.0174533
 
-global_seed = 69
+PIX2REAL = 4.26 # rough conversion from pixel unit to metric unit: ISS LIS has ~550km swath and sensor is 129 x 129 pix 
+REAL2PIX = 1/PIX2REAL
+
+global_seed = 420
 debug_plots = 0
 
-obs_window = np.array([[0, 100],
-                       [0, 100]]) 
+lightning_prob = 0.5
+
+obs_window = np.array([[0, 129],
+                       [0, 129]]) 
 # Observation window
 # obs_window = [[x_low, x_high],
 #               [y_low, y_high]]
@@ -86,9 +91,17 @@ def _state_mat_fun(t, dt, useless):
                      [0,    0,      0, 1.0]])
 
 def _lamda_fun(shape, rng):
-    # Can implement lamda rate for meas based on shape matrix here
-    rate = rng.integers(10, 30)
-    return rate
+    # Implement Flash Rate Parameterization Scheme using updraft volume model https://doi.org/10.1029/2007JD009598
+    # f (flash/min) = 6.75 x 1e-11 x vol (m^3) - 13.9
+    # Assume that the volume span the storm area and reach from 10km to 15km in altitude (roughly)
+    
+    # Updraft volume calc
+    eig, eig_val = np.linalg.eig(shape)
+    uv_m3 = (np.prod(eig) * np.pi * PIX2REAL**2) * 5 * 1e9
+
+    # flash rate per sec
+    f_ps = (6.75 * uv_m3 * 1e-11 - 13.9)/60
+    return f_ps
 
 def _shape_fun(shape, rng):
     # Can implement time varying shape matrix here
@@ -180,10 +193,12 @@ def _check_in_FOV(true_agents, obs_window):
 def _gen_extented_meas(tt, agents_in_FOV, obs_window, rng:np.random.Generator):
     meas_in = []
     for agent in agents_in_FOV:
+        if rng.uniform(0, 1) > lightning_prob:
+            continue
         num_meas = rng.poisson(agent[0])
         agent_pos = np.array([agent[1][0,0], agent[1][2,0]])
-        m = rng.multivariate_normal(agent_pos, 0.20*agent[2],num_meas).reshape(num_meas,2).transpose()
-
+        m = rng.multivariate_normal(agent_pos, 0.20*agent[2],num_meas).reshape(num_meas,2).transpose().round()
+        m = np.unique(m,axis=1)
         # Cull any measurment outside of FOV
         out_FOV = np.where(np.logical_or(m[1,:] < obs_window[1,0], m[1,:] > obs_window[1,1]))
         out_FOV = out_FOV[0]
@@ -200,17 +215,16 @@ def test_GGIW_PHD():
     rng = rnd.default_rng(global_seed)
 
     dt = 1
-    t0, t1 = 0, 120 + dt
+    t0, t1 = 0, 90 + dt # Roughly the view time of a region by ISS of 90 s
 
-    num_agent = 3
+    num_agent = 5
+    birth_time = np.array([t0, 20])
 
-    birth_time = np.array([t0, 50])
+    state_mean = np.array([128/2, -0.1, 130.0, -2.0]).reshape((4,1))
+    state_std = np.array([50.0, 0.2, 1.0, 0.1]).reshape((4,1))
 
-    state_mean = np.array([50.0, -0.1, 120.0, -1.5]).reshape((4,1))
-    state_std = np.array([10.0, 0.2, 1.0, 0.1]).reshape((4,1))
-
-    shape_mean = np.diag(np.array([30, 15]))
-    shape_std = np.array([5.0, 5.0]).reshape((2,1))
+    shape_mean = np.diag(np.array([(12 * REAL2PIX)**2, (10 * REAL2PIX)**2])) # Assume average storm diameter of 24km with some variation in shape
+    shape_std = np.array([10 * REAL2PIX, 10 * REAL2PIX]).reshape((2,1))
 
     b_model = toyExtendedAgentBirth(num_agent, birth_time, state_mean, state_std, shape_mean, shape_std, rng)
 
@@ -233,7 +247,8 @@ def test_GGIW_PHD():
 
         # For visualization
         ax.clear()
-        ax.set_title(str(len(agent_in_FOV)))
+        title_str = "t = " + str(tt) + " s. Num in FOV = " + str(str(len(agent_in_FOV)))
+        ax.set_title(title_str)
         ax.plot([0],[0])
         ax.set_xlim(tuple(obs_window[0,:]))
         ax.set_ylim(tuple(obs_window[1,:]))
@@ -241,11 +256,7 @@ def test_GGIW_PHD():
         ax = _draw_frame(true_agents, ax)
         for meas in meas_in:
             ax.scatter(meas[0],meas[1], 10, "r" ,marker="*")
-        plt.pause(0.1)
-
-    
-        
-        
+        plt.pause(0.2)
 
 if __name__ == "__main__":
     from timeit import default_timer as timer
