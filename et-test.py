@@ -2,6 +2,7 @@ import sys
 import numpy as np
 import numpy.random as rnd
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 from copy import deepcopy
 
 import scipy.stats as stats
@@ -53,13 +54,24 @@ def _gen_ellipse(x, shape):
     ellipsis [1,:] += x[2]
     return ellipsis
 
-def _rot_shape_mat(shape, rot_deg:float):
+def _rotate_shape_mat (shape, rot_deg:float):
     stheta = np.sin(DEG2RAD * rot_deg)
     ctheta = np.cos(DEG2RAD * rot_deg)
 
     rot_mat = np.array([[ctheta, -stheta],
                         [stheta, ctheta]])
-    return rot_mat @ shape
+    
+    # Decompose shape to principal axes
+    eig_val, eig_vec = np.linalg.eig(shape)
+    eig_vecx = eig_vec[:,0]
+    eig_vecy = eig_vec[:,1]
+
+    rot_eig_vecx = rot_mat @ eig_vecx.reshape((2,1))
+    rot_eig_vecy = rot_mat @ eig_vecy.reshape((2,1))
+    rot_eigv_mat = np.hstack((rot_eig_vecx,rot_eig_vecy))
+    inv_rot_eigv_mat = np.linalg.inv(rot_eigv_mat)
+    return rot_eigv_mat @ np.diag(eig_val) @ inv_rot_eigv_mat
+
 
 def _state_mat_fun(t, dt, useless):
     return np.array([[1.0,  dt,     0,   0],
@@ -67,11 +79,12 @@ def _state_mat_fun(t, dt, useless):
                      [0,    0,    1.0,  dt],
                      [0,    0,      0, 1.0]])
 
-def _lamda_fun(shape):
+def _lamda_fun(shape, rng):
     # Can implement lamda rate for meas based on shape matrix here
-    return 1
+    rate = rng.integers(10, 30)
+    return rate
 
-def _shape_fun(shape):
+def _shape_fun(shape, rng):
     # Can implement time varying shape matrix here
     return shape.copy()
 
@@ -118,36 +131,43 @@ class toyExtendedAgentBirth(object):
         self.state_cov = np.diag(np.square(state_std).flatten())
         self.shape_cov = np.diag(np.square(shape_std).flatten())
 
-def _prop_true(true_agents, tt, dt):
+def _prop_true(true_agents, tt, dt, rng):
     
     if true_agents is None:
         return []
 
     out = []
     for agent in true_agents:
-        updated_lamda = _lamda_fun(agent[2])
-        updated_shape = _shape_fun(agent[2])
+        updated_lamda = _lamda_fun(agent[2],rng)
+        updated_shape = _shape_fun(agent[2],rng)
         out.append([updated_lamda, _state_mat_fun(tt,dt,"useless") @ agent[1], updated_shape])
     return out
 
 def _update_true_agents(true_agents:list, tt:float, dt:float, b_model:toyExtendedAgentBirth, rng:np.random.Generator):
     # Propagate existing target
-    out = _prop_true(true_agents, tt, dt)
+    out = _prop_true(true_agents, tt, dt, rng)
 
     # Add new targets
     if any(np.abs(tt - b_model.birth_time) < 1e-8):
         # Birth description
         # Random state norm distributed around state_mean
         # Random rate
-        # Random shape with size sample around shape_mean and have random rotation applied
+        # Random shape with size sample around shape_mean and have random rotation
         x = b_model.state_mean + (rng.multivariate_normal(np.zeros((b_model.state_mean.shape[0])), b_model.state_cov)).reshape(4,1)
         shape_delta = rng.multivariate_normal(np.zeros((b_model.shape_mean.shape[0])), b_model.shape_cov)
         shape = b_model.shape_mean + np.diag(shape_delta)
-        rot = rng.uniform(0, 360)
-        rot_shape = _rot_shape_mat(shape, rot)
-        rate = rng.integers(10, 30)
+        rot = rng.uniform(0,360)
+        rot_shape = _rotate_shape_mat(shape, rot)
+        rate = _lamda_fun(rot_shape, rng)
         out.append([rate, x.copy(), rot_shape.copy()])
     return out
+
+def _draw_frame(true_agents, ax):
+    for agent in true_agents:
+        cur_ellipse = _gen_ellipse(agent[1], agent[2])
+        ax.plot(cur_ellipse[0,:], cur_ellipse[1,:])
+    return ax
+
 
 def test_GGIW_PHD():
     print ("Test GGIW-PHD")
@@ -155,32 +175,44 @@ def test_GGIW_PHD():
     rng = rnd.default_rng(global_seed)
 
     dt = 1
-    t0, t1 = 0, 100 + dt
+    t0, t1 = 0, 120 + dt
 
     num_agent = 3
 
-    birth_time = np.array([t0, 25])
+    birth_time = np.array([t0, 50])
 
-    state_mean = np.array([50.0, -2.0, 120.0, -1.0]).reshape((4,1))
-    state_std = np.array([30.0, 1, 1.0, 0]).reshape((4,1))
+    state_mean = np.array([50.0, -0.1, 120.0, -1.5]).reshape((4,1))
+    state_std = np.array([10.0, 0.2, 1.0, 0.1]).reshape((4,1))
 
-    shape_mean = np.diag(np.array([30, 10]))
-    shape_std = np.array([10.0, 10.0]).reshape((2,1))
+    shape_mean = np.diag(np.array([30, 15]))
+    shape_std = np.array([5.0, 5.0]).reshape((2,1))
 
     b_model = toyExtendedAgentBirth(num_agent, birth_time, state_mean, state_std, shape_mean, shape_std, rng)
 
     time = np.arange(t0, t1, dt)
     true_agents = []    # Each agent is a list [lambda, x, shape]
     global_true = []
+    fig, ax = plt.subplots()
+    artist = []
     for kk,tt in enumerate(time):
+        ax.clear()
+        ax.set_title(str(tt) + "s")
+        ax.plot([0],[0])
+        ax.set_xlim(tuple(obs_window[0,:]))
+        ax.set_ylim(tuple(obs_window[1,:]))
+        ax.set_aspect(1)
         true_agents = _update_true_agents(true_agents, tt, dt, b_model, rng)
+        ax = _draw_frame(true_agents, ax)
+        plt.pause(0.1)
+    
+        
         
 
 if __name__ == "__main__":
     from timeit import default_timer as timer
     import matplotlib
 
-    #matplotlib.use("WebAgg")
+    matplotlib.use("WebAgg")
 
     plt.close("all")
 
@@ -191,7 +223,7 @@ if __name__ == "__main__":
     # Test function here
     #############################################
     test_GGIW_PHD()
-
+    
 
     ############################################
     end = timer()
