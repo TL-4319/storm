@@ -42,6 +42,13 @@ obs_window = np.array([[0, 100],
 #       0  1  0  0
 #       0  0  1  dt
 #       0  0  0  1 ]
+
+def _draw_frame(true_agents, ax):
+    for agent in true_agents:
+        cur_ellipse = _gen_ellipse(agent[1], agent[2])
+        ax.plot(cur_ellipse[0,:], cur_ellipse[1,:])
+    return ax
+
 def _gen_ellipse(x, shape):
     # Return array of X and Y coordinates of points on the edge of ellipse
     # x         | 4 x 1 numpy array state vector
@@ -71,7 +78,6 @@ def _rotate_shape_mat (shape, rot_deg:float):
     rot_eigv_mat = np.hstack((rot_eig_vecx,rot_eig_vecy))
     inv_rot_eigv_mat = np.linalg.inv(rot_eigv_mat)
     return rot_eigv_mat @ np.diag(eig_val) @ inv_rot_eigv_mat
-
 
 def _state_mat_fun(t, dt, useless):
     return np.array([[1.0,  dt,     0,   0],
@@ -162,12 +168,31 @@ def _update_true_agents(true_agents:list, tt:float, dt:float, b_model:toyExtende
         out.append([rate, x.copy(), rot_shape.copy()])
     return out
 
-def _draw_frame(true_agents, ax):
+def _check_in_FOV(true_agents, obs_window):
+    agent_in_FOV = []
     for agent in true_agents:
-        cur_ellipse = _gen_ellipse(agent[1], agent[2])
-        ax.plot(cur_ellipse[0,:], cur_ellipse[1,:])
-    return ax
+        el = _gen_ellipse(agent[1], agent[2])
+        is_in_FOV = np.any(el[0,:] > obs_window[0,0]) and np.any(el[0,:] < obs_window[0,1]) and np.any(el[1,:] > obs_window[1,0]) and np.any(el[1,:] < obs_window[1,1])
+        if is_in_FOV:
+            agent_in_FOV.append(deepcopy(agent))
+    return agent_in_FOV
+        
+def _gen_extented_meas(tt, agents_in_FOV, obs_window, rng:np.random.Generator):
+    meas_in = []
+    for agent in agents_in_FOV:
+        num_meas = rng.poisson(agent[0])
+        agent_pos = np.array([agent[1][0,0], agent[1][2,0]])
+        m = rng.multivariate_normal(agent_pos, 0.20*agent[2],num_meas).reshape(num_meas,2).transpose()
 
+        # Cull any measurment outside of FOV
+        out_FOV = np.where(np.logical_or(m[1,:] < obs_window[1,0], m[1,:] > obs_window[1,1]))
+        out_FOV = out_FOV[0]
+        m = np.delete(m, out_FOV, 1)
+        out_FOV = np.where(np.logical_or(m[0,:] < obs_window[0,0], m[0,:] > obs_window[0,1]))
+        out_FOV = out_FOV[0]
+        m = np.delete(m, out_FOV, 1)
+        meas_in.append(m.copy())  
+    return meas_in
 
 def test_GGIW_PHD():
     print ("Test GGIW-PHD")
@@ -195,24 +220,35 @@ def test_GGIW_PHD():
     fig, ax = plt.subplots()
     artist = []
     for kk,tt in enumerate(time):
+        # Propagate agents
+        true_agents = _update_true_agents(true_agents, tt, dt, b_model, rng)
+
+        # Check extend in FOV
+        # Since we are dealing with extend, observation window is limited. Object is deemed to exist if any part of its extend is in FOV
+        agent_in_FOV = _check_in_FOV(true_agents, obs_window)
+        global_true.append(deepcopy(agent_in_FOV))
+        
+        # Generate measurements
+        meas_in = _gen_extented_meas(tt, agent_in_FOV, obs_window, rng)
+
+        # For visualization
         ax.clear()
-        ax.set_title(str(tt) + "s")
+        ax.set_title(str(len(agent_in_FOV)))
         ax.plot([0],[0])
         ax.set_xlim(tuple(obs_window[0,:]))
         ax.set_ylim(tuple(obs_window[1,:]))
         ax.set_aspect(1)
-        true_agents = _update_true_agents(true_agents, tt, dt, b_model, rng)
         ax = _draw_frame(true_agents, ax)
+        for meas in meas_in:
+            ax.scatter(meas[0],meas[1], 10, "r" ,marker="*")
         plt.pause(0.1)
+
     
         
         
 
 if __name__ == "__main__":
     from timeit import default_timer as timer
-    import matplotlib
-
-    matplotlib.use("WebAgg")
 
     plt.close("all")
 
