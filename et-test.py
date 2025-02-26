@@ -53,7 +53,7 @@ def _gen_ellipse(x, shape):
     ellipsis [1,:] += x[2]
     return ellipsis
 
-def _calc_shape_mat(shape, rot_deg:float):
+def _rot_shape_mat(shape, rot_deg:float):
     stheta = np.sin(DEG2RAD * rot_deg)
     ctheta = np.cos(DEG2RAD * rot_deg)
 
@@ -136,11 +136,17 @@ def _update_true_agents(true_agents:list, tt:float, dt:float, b_model:toyExtende
 
     # Add new targets
     if any(np.abs(tt - b_model.birth_time) < 1e-8):
-        x = b_model.state_mean + (rng.multivariate_normal(np.zeros((b_model.state_mean.shape[0])), b_model.state_cov))
+        # Birth description
+        # Random state norm distributed around state_mean
+        # Random rate
+        # Random shape with size sample around shape_mean and have random rotation applied
+        x = b_model.state_mean + (rng.multivariate_normal(np.zeros((b_model.state_mean.shape[0])), b_model.state_cov)).reshape(4,1)
         shape_delta = rng.multivariate_normal(np.zeros((b_model.shape_mean.shape[0])), b_model.shape_cov)
         shape = b_model.shape_mean + np.diag(shape_delta)
+        rot = rng.uniform(0, 360)
+        rot_shape = _rot_shape_mat(shape, rot)
         rate = rng.integers(10, 30)
-        out.append([rate, x.copy(), shape.copy()])
+        out.append([rate, x.copy(), rot_shape.copy()])
     return out
 
 def test_GGIW_PHD():
