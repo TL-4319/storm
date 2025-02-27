@@ -32,7 +32,7 @@ CARBS submodule is tracked via its own git and needs to be commit and push from 
 ### Developing STORM application
 If a code requires import from CARBS, make sure to build the latest local CARBS package.
 
-### Preprocessing data
+## Preprocessing data
 LIS data from ISS can be acquired from [here](https://search.earthdata.nasa.gov/search?q=lightning&fi=LIS). Make sure to get both science and background data in netCDF format. Files are to be saved in ```storm/dataset``` directory.
 
 #### Generate background video
@@ -44,7 +44,7 @@ Raw LIS data can be prepared into measurement tables using ```pre_process_event.
 - ```elapsed_time_s``` [Z x 1] numpy array. Essentially ```TAI93_time_s - TAI93_time_s[0]```
 - ```meas_tab``` list of size [Z] where ```meas_tab[k] = np.nan``` if there are no measurement at k. If k has measurement then ```meas_tab[k] = meas``` where ```meas``` is a [n x 2] numpy array where n is the number of measurement at that time step. The first and second column contains the X and Y pixel location, respectively. 
 
-### Toy example
+## Toy example
 A quick simulation is included in ```et-test.py``` which contain 2D constant velocity model with a bias in Y-velocity to emulate LEO sensor motion over earth. The observation space is limit to a square window of 128 x 128. The extended targets is a ```list``` that contains three terms:
 -   rate ```int``` : Poisson rate of measurement (lightning events). A function of the target shape and is estimated using [this](./ref/lightning_mapper/Journal%20of%20Geophysical%20Research%20%20Atmospheres%20-%202008%20-%20Deierling%20-%20Total%20lightning%20activity%20as%20an%20indicator%20of%20updraft.pdf).
 - state ```4 x 1 numpy array``` : Kinematic states of the target [x_pos, x_vel, y_pos, y_vel] 
