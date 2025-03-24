@@ -11,7 +11,10 @@ import gncpy.filters as gfilts
 import gncpy.dynamics.basic as gdyn
 import gncpy.distributions as gdistrib
 
-import carbs.extended_targets.GGIW_Serums_Models as gmodels
+from carbs.extended_targets.GGIW_Serums_Models import GGIW, GGIWMixture
+
+from carbs.extended_targets.GGIW_EKF import GGIW_ExtendedKalmanFilter
+import carbs.extended_targets.GGIW_RFS as GGIW_RFS
 
 DEG2RAD = 0.0174533
 
@@ -228,6 +231,24 @@ def test_GGIW_PHD():
 
     b_model = toyExtendedAgentBirth(num_agent, birth_time, state_mean, state_std, shape_mean, shape_std, rng)
 
+    birth_model = GGIWMixture(alphas=[10.0], 
+            betas=[1/2.0],
+            means=[np.array([65, 0, 65, 0]).reshape((4, 1))],
+            covariances=[np.diag([65,10,65,10])],
+            IWdofs=[8.0],
+            IWshapes=[np.array([[25, 5],[5, 25]])],
+            weights=[1.0])
+    
+    # filt = GGIW_ExtendedKalmanFilter(forgetting_factor=3,tau=1)
+    # filt.set_state_model(dyn_obj=gdyn.double_integrator()) 
+    # filt.set_measurement_model(meas_mat=np.array([[1, 0, 0, 0], [0, 0, 1, 0]]))
+
+    # filt.proc_noise = np.diag([10, 1, 10, 1])
+    # filt.meas_noise = 0.2 * np.eye(2)
+
+    # filt.dt = dt
+
+
     time = np.arange(t0, t1, dt)
     true_agents = []    # Each agent is a list [lambda, x, shape]
     global_true = []
@@ -245,6 +266,9 @@ def test_GGIW_PHD():
         # Generate measurements
         meas_in = _gen_extented_meas(tt, agent_in_FOV, obs_window, rng)
 
+        # Unpartition measurements into list of arrays 
+        measurements = [vec for arr in meas_in for vec in arr.T]
+
         # For visualization
         ax.clear()
         title_str = "t = " + str(tt) + " s. Num in FOV = " + str(str(len(agent_in_FOV)))
@@ -256,6 +280,7 @@ def test_GGIW_PHD():
         ax = _draw_frame(true_agents, ax)
         for meas in meas_in:
             ax.scatter(meas[0],meas[1], 10, "r" ,marker="*")
+            
         plt.pause(0.2)
 
 if __name__ == "__main__":
