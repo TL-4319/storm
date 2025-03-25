@@ -71,7 +71,7 @@ fig, ax = plt.subplots()
 for kk, t in enumerate(time[:-1]):
     ggiw_est = filt.predict(t, ggiw_est, dyn_fun_params=(dt,))
 
-    ggiw.location = truth_kinematics.propagate_state(t,ggiw.mean,state_args=(dt,)).flatten()
+    ggiw.mean = truth_kinematics.propagate_state(t,ggiw.mean,state_args=(dt,)).flatten()
 
     measurements = ggiw.sample_measurements()
 
