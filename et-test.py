@@ -2,10 +2,7 @@ import sys
 import numpy as np
 import numpy.random as rnd
 import matplotlib.pyplot as plt
-<<<<<<< HEAD
-=======
 import matplotlib.animation as animation
->>>>>>> 0ab43500ca7c3969e654cb0d5d66c553099ee8d5
 from copy import deepcopy
 
 import scipy.stats as stats
@@ -14,17 +11,6 @@ import gncpy.filters as gfilts
 import gncpy.dynamics.basic as gdyn
 import gncpy.distributions as gdistrib
 
-<<<<<<< HEAD
-import carbs.extended_targets.GGIW_Serums_Models as gmodels
-
-DEG2RAD = 0.0174533
-
-global_seed = 69
-debug_plots = 0
-
-obs_window = np.array([[0, 100],
-                       [0, 100]]) 
-=======
 from carbs.extended_targets.GGIW_Serums_Models import GGIW, GGIWMixture
 
 from carbs.extended_targets.GGIW_EKF import GGIW_ExtendedKalmanFilter
@@ -42,7 +28,6 @@ lightning_prob = 0.5
 
 obs_window = np.array([[0, 129],
                        [0, 129]]) 
->>>>>>> 0ab43500ca7c3969e654cb0d5d66c553099ee8d5
 # Observation window
 # obs_window = [[x_low, x_high],
 #               [y_low, y_high]]
@@ -65,8 +50,6 @@ obs_window = np.array([[0, 129],
 #       0  1  0  0
 #       0  0  1  dt
 #       0  0  0  1 ]
-<<<<<<< HEAD
-=======
 
 def _draw_frame(true_agents, ax):
     for agent in true_agents:
@@ -74,7 +57,6 @@ def _draw_frame(true_agents, ax):
         ax.plot(cur_ellipse[0,:], cur_ellipse[1,:])
     return ax
 
->>>>>>> 0ab43500ca7c3969e654cb0d5d66c553099ee8d5
 def _gen_ellipse(x, shape):
     # Return array of X and Y coordinates of points on the edge of ellipse
     # x         | 4 x 1 numpy array state vector
@@ -87,19 +69,12 @@ def _gen_ellipse(x, shape):
     ellipsis [1,:] += x[2]
     return ellipsis
 
-<<<<<<< HEAD
-def _calc_shape_mat(shape, rot_deg:float):
-=======
 def _rotate_shape_mat (shape, rot_deg:float):
->>>>>>> 0ab43500ca7c3969e654cb0d5d66c553099ee8d5
     stheta = np.sin(DEG2RAD * rot_deg)
     ctheta = np.cos(DEG2RAD * rot_deg)
 
     rot_mat = np.array([[ctheta, -stheta],
                         [stheta, ctheta]])
-<<<<<<< HEAD
-    return rot_mat @ shape
-=======
     
     # Decompose shape to principal axes
     eig_val, eig_vec = np.linalg.eig(shape)
@@ -111,7 +86,6 @@ def _rotate_shape_mat (shape, rot_deg:float):
     rot_eigv_mat = np.hstack((rot_eig_vecx,rot_eig_vecy))
     inv_rot_eigv_mat = np.linalg.inv(rot_eigv_mat)
     return rot_eigv_mat @ np.diag(eig_val) @ inv_rot_eigv_mat
->>>>>>> 0ab43500ca7c3969e654cb0d5d66c553099ee8d5
 
 def _state_mat_fun(t, dt, useless):
     return np.array([[1.0,  dt,     0,   0],
@@ -119,13 +93,6 @@ def _state_mat_fun(t, dt, useless):
                      [0,    0,    1.0,  dt],
                      [0,    0,      0, 1.0]])
 
-<<<<<<< HEAD
-def _lamda_fun(shape):
-    # Can implement lamda rate for meas based on shape matrix here
-    return 1
-
-def _shape_fun(shape):
-=======
 def _lamda_fun(shape, rng):
     # Implement Flash Rate Parameterization Scheme using updraft volume model https://doi.org/10.1029/2007JD009598
     # f (flash/min) = 6.75 x 1e-11 x vol (m^3) - 13.9
@@ -140,7 +107,6 @@ def _lamda_fun(shape, rng):
     return f_ps
 
 def _shape_fun(shape, rng):
->>>>>>> 0ab43500ca7c3969e654cb0d5d66c553099ee8d5
     # Can implement time varying shape matrix here
     return shape.copy()
 
@@ -187,42 +153,20 @@ class toyExtendedAgentBirth(object):
         self.state_cov = np.diag(np.square(state_std).flatten())
         self.shape_cov = np.diag(np.square(shape_std).flatten())
 
-<<<<<<< HEAD
-def _prop_true(true_agents, tt, dt):
-=======
 def _prop_true(true_agents, tt, dt, rng):
->>>>>>> 0ab43500ca7c3969e654cb0d5d66c553099ee8d5
     
     if true_agents is None:
         return []
 
     out = []
     for agent in true_agents:
-<<<<<<< HEAD
-        updated_lamda = _lamda_fun(agent[2])
-        updated_shape = _shape_fun(agent[2])
-=======
         updated_lamda = _lamda_fun(agent[2],rng)
         updated_shape = _shape_fun(agent[2],rng)
->>>>>>> 0ab43500ca7c3969e654cb0d5d66c553099ee8d5
         out.append([updated_lamda, _state_mat_fun(tt,dt,"useless") @ agent[1], updated_shape])
     return out
 
 def _update_true_agents(true_agents:list, tt:float, dt:float, b_model:toyExtendedAgentBirth, rng:np.random.Generator):
     # Propagate existing target
-<<<<<<< HEAD
-    out = _prop_true(true_agents, tt, dt)
-
-    # Add new targets
-    if any(np.abs(tt - b_model.birth_time) < 1e-8):
-        x = b_model.state_mean + (rng.multivariate_normal(np.zeros((b_model.state_mean.shape[0])), b_model.state_cov))
-        shape_delta = rng.multivariate_normal(np.zeros((b_model.shape_mean.shape[0])), b_model.shape_cov)
-        shape = b_model.shape_mean + np.diag(shape_delta)
-        rate = rng.integers(10, 30)
-        out.append([rate, x.copy(), shape.copy()])
-    return out
-
-=======
     out = _prop_true(true_agents, tt, dt, rng)
 
     # Add new targets
@@ -268,41 +212,12 @@ def _gen_extented_meas(tt, agents_in_FOV, obs_window, rng:np.random.Generator):
         meas_in.append(m.copy())  
     return meas_in
 
->>>>>>> 0ab43500ca7c3969e654cb0d5d66c553099ee8d5
 def test_GGIW_PHD():
     print ("Test GGIW-PHD")
     
     rng = rnd.default_rng(global_seed)
 
     dt = 1
-<<<<<<< HEAD
-    t0, t1 = 0, 100 + dt
-
-    num_agent = 3
-
-    birth_time = np.array([t0, 25])
-
-    state_mean = np.array([50.0, -2.0, 120.0, -1.0]).reshape((4,1))
-    state_std = np.array([30.0, 1, 1.0, 0]).reshape((4,1))
-
-    shape_mean = np.diag(np.array([30, 10]))
-    shape_std = np.array([10.0, 10.0]).reshape((2,1))
-
-    b_model = toyExtendedAgentBirth(num_agent, birth_time, state_mean, state_std, shape_mean, shape_std, rng)
-
-    time = np.arange(t0, t1, dt)
-    true_agents = []    # Each agent is a list [lambda, x, shape]
-    global_true = []
-    for kk,tt in enumerate(time):
-        true_agents = _update_true_agents(true_agents, tt, dt, b_model, rng)
-        
-
-if __name__ == "__main__":
-    from timeit import default_timer as timer
-    import matplotlib
-
-    #matplotlib.use("WebAgg")
-=======
     t0, t1 = 0, 90 + dt # Roughly the view time of a region by ISS of 90 s
 
     num_agent = 5
@@ -370,7 +285,6 @@ if __name__ == "__main__":
 
 if __name__ == "__main__":
     from timeit import default_timer as timer
->>>>>>> 0ab43500ca7c3969e654cb0d5d66c553099ee8d5
 
     plt.close("all")
 
@@ -381,11 +295,7 @@ if __name__ == "__main__":
     # Test function here
     #############################################
     test_GGIW_PHD()
-<<<<<<< HEAD
-
-=======
     
->>>>>>> 0ab43500ca7c3969e654cb0d5d66c553099ee8d5
 
     ############################################
     end = timer()
