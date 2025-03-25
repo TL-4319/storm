@@ -46,15 +46,15 @@ Raw LIS data can be prepared into measurement tables using ```pre_process_event.
 
 ## Toy example
 A quick simulation is included in ```et-test.py``` which contain 2D constant velocity model with a bias in Y-velocity to emulate LEO sensor motion over earth. The observation space is limit to a square window of 128 x 128. The extended targets is a ```list``` that contains three terms:
--   rate ```int``` : Poisson rate of measurement (lightning events). A function of the target shape and is estimated using [this](./ref/lightning_mapper/Journal%20of%20Geophysical%20Research%20%20Atmospheres%20-%202008%20-%20Deierling%20-%20Total%20lightning%20activity%20as%20an%20indicator%20of%20updraft.pdf).
-- state ```4 x 1 numpy array``` : Kinematic states of the target [x_pos, x_vel, y_pos, y_vel] 
-- shape ```2 x 2 numpy array``` : Shape matrix of the target assuming ellipse shapes
+-   ```rate``` : Poisson rate of measurement (lightning events). A function of the target shape and is estimated using [this](./ref/lightning_mapper/Journal%20of%20Geophysical%20Research%20%20Atmospheres%20-%202008%20-%20Deierling%20-%20Total%20lightning%20activity%20as%20an%20indicator%20of%20updraft.pdf).
+- ```state``` [4 x 1] numpy array : Kinematic states of the target [x_pos, x_vel, y_pos, y_vel] 
+- ```shape``` [6 x 1] numpy array : Shape state of the target [theta, theta_dot, semi_major, semi_major_dot, semi_minor, semi_minor_dot]
 
 The measurement set ```Z``` is generated with the following scheme:
 - Check if target is in FOV. FOV is true when any extent of the target is within the FOV
 - Randomly set if target generate meas or not in this timestep. Probability defined by ```lightning_prob```
 - If set to generate measurement, sample for number of measurement ```|Z|``` from ```Pois(|Z|,rate)```
-- Sample ```|Z|``` number measurements ```Z = {m1, m2, ...} ``` with spatial distribution following ```Norm(m, pos, 0.2 * shape)```. Note, the shape is tightened to shrink the measurement span similar to method used [here](/ref/GGIW/Tracking_of_Extended_Objects_and_Group_Targets_Using_Random_Matrices.pdf)
+- Sample ```|Z|``` number measurements ```Z = {m1, m2, ...} ``` with spatial distribution following ```Norm(m, pos, 0.25 * shape_mat)```. Note, the shape is tightened to shrink the measurement span similar to method used [here](/ref/GGIW/Tracking_of_Extended_Objects_and_Group_Targets_Using_Random_Matrices.pdf)
 - Cull any measurement not in FOV
 
 The returned measurement set is returned as ```2 x |Z| numpy array``` where ```meas_in[0,:]``` are the detections X positions and ```meas_in[1,:]``` are the detection Y positions.
