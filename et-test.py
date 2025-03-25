@@ -17,6 +17,7 @@ from carbs.extended_targets.GGIW_EKF import GGIW_ExtendedKalmanFilter
 import carbs.extended_targets.GGIW_RFS as GGIW_RFS
 
 DEG2RAD = 0.0174533
+RAD2DEG = 57.2958
 
 PIX2REAL = 4.26 # rough conversion from pixel unit to metric unit: ISS LIS has ~550km swath and sensor is 129 x 129 pix 
 REAL2PIX = 1/PIX2REAL
@@ -51,9 +52,24 @@ obs_window = np.array([[0, 129],
 #       0  0  1  dt
 #       0  0  0  1 ]
 
+
+## Shape states include 
+# shape_state = [theta, theta_dot, major, major_dot, minor, minor_dot]
+
+# A = [1 dt 0  0 0 0
+#      0  1 0  0 0 0
+#      0  0 1 dt 0 0
+#      0  0 0  1 0 0
+#      0  0 0  0 1 dt
+#      0  0 0  0 0 1]
+# Shape states will have random walk on state second derivative
+
 def _draw_frame(true_agents, ax):
     for agent in true_agents:
-        cur_ellipse = _gen_ellipse(agent[1], agent[2])
+        if agent[0] == 0:
+            continue
+        shape_mat = _params2shapemat(agent[2][2,0], agent[2][4,0], agent[2][0,0])
+        cur_ellipse = _gen_ellipse(agent[1], shape_mat)
         ax.plot(cur_ellipse[0,:], cur_ellipse[1,:])
     return ax
 
@@ -68,6 +84,42 @@ def _gen_ellipse(x, shape):
     ellipsis [0,:] += x[0]
     ellipsis [1,:] += x[2]
     return ellipsis
+
+def _shapemat2params(shape):
+    # Return the semimajor axes and rotation angle from x to the semimajor axis
+
+    # Decompose shape to principal axes
+    eig_val, eig_vec = np.linalg.eig(shape)
+    semi_maj = np.linalg.norm(eig_vec[:,0])
+    semi_min = np.linalg.norm(eig_vec[:,1])
+
+    # Calc rotation from x to semimajor axis
+    theta_deg = np.atan2(semi_maj[1],semi_maj[0]) * RAD2DEG
+
+    return np.sqrt(semi_maj), np.sqrt(semi_min), theta_deg
+
+def _params2shapemat(semi_maj, semi_min, theta_deg):
+    # Return the shape matrix given ellipses principle axes and rotation from x to semi major axis
+
+    sq_maj = semi_maj * semi_maj
+    sq_min = semi_min * semi_min
+
+    stheta = np.sin(DEG2RAD * theta_deg)
+    ctheta = np.cos(DEG2RAD * theta_deg)
+
+    rot_mat = np.array([[ctheta, -stheta],
+                        [stheta, ctheta]])
+    
+    major_vector = np.array([[sq_maj],
+                            [0]])
+    minor_vector = np.array([[0],
+                            [sq_min]])
+    
+    rot_eig_vecx = rot_mat @ major_vector.reshape((2,1))
+    rot_eig_vecy = rot_mat @ minor_vector.reshape((2,1))
+    rot_eigv_mat = np.hstack((rot_eig_vecx,rot_eig_vecy))
+    inv_rot_eigv_mat = np.linalg.inv(rot_eigv_mat)
+    return rot_eigv_mat @ np.diag(np.array([sq_maj, sq_min])) @inv_rot_eigv_mat
 
 def _rotate_shape_mat (shape, rot_deg:float):
     stheta = np.sin(DEG2RAD * rot_deg)
@@ -93,22 +145,36 @@ def _state_mat_fun(t, dt, useless):
                      [0,    0,    1.0,  dt],
                      [0,    0,      0, 1.0]])
 
+def _shape_mat_fun(t, dt, useless):
+    return np.array ([[1, dt, 0,  0, 0, 0],
+                      [0,  1, 0,  0, 0, 0],
+                      [0,  0, 1, dt, 0, 0],
+                      [0,  0, 0,  1, 0, 0],
+                      [0,  0, 0,  0, 1, dt],
+                      [0,  0, 0,  0, 0, 1]])
+
+def _shape_mat_acc(t, dt, useless):
+    return np.array ([[0,  0, 0,  0, 0, 0],
+                      [0,  dt * 0.1, 0,  0, 0, 0],
+                      [0,  0, 0, 0, 0, 0],
+                      [0,  0, 0,  dt * 0.1, 0, 0],
+                      [0,  0, 0,  0, 0, 0],
+                      [0,  0, 0,  0, 0, dt * 0.1]])
+
 def _lamda_fun(shape, rng):
     # Implement Flash Rate Parameterization Scheme using updraft volume model https://doi.org/10.1029/2007JD009598
     # f (flash/min) = 6.75 x 1e-11 x vol (m^3) - 13.9
     # Assume that the volume span the storm area and reach from 10km to 15km in altitude (roughly)
     
+    shape_mat = _params2shapemat(abs(shape[2,0]), abs(shape[4,0]), shape[0,0])
     # Updraft volume calc
-    eig, eig_val = np.linalg.eig(shape)
+    eig, eig_val = np.linalg.eig(shape_mat)
     uv_m3 = (np.prod(eig) * np.pi * PIX2REAL**2) * 5 * 1e9
 
     # flash rate per sec
     f_ps = (6.75 * uv_m3 * 1e-11 - 13.9)/60
-    return f_ps
+    return max(0,f_ps)
 
-def _shape_fun(shape, rng):
-    # Can implement time varying shape matrix here
-    return shape.copy()
 
 class toyExtendedAgentBirth(object):
     """Object containing the birth model for toy example"""
@@ -126,7 +192,7 @@ class toyExtendedAgentBirth(object):
             Mean of the state vector for all agent
         state_std : N x 1 numpy array
             Standard variation of the birth state vector
-        shape_mean : R x N numpy array
+        shape_mean : R x 1 numpy array
             Mean shape matrix for all agent. 
         shape_std : R x 1 numpy array
             Standard deviation of agent shape
@@ -139,10 +205,10 @@ class toyExtendedAgentBirth(object):
             Birth time of of each agent
         state_mean : N x 1 numpy array
             Mean of the state vector for all agent
-        state_cov : N x X numpu array
+        state_cov : N x N numpu array
             Covariance matrix of state 
-        shape_mean : R x R numpy array
-            Base shape matrix for all agent. 
+        shape_mean : R x 1 numpy array
+            Base shape state for all agent. 
         shape_cov : R x R numpy array
             Covariance matrix of shape
         """
@@ -160,9 +226,19 @@ def _prop_true(true_agents, tt, dt, rng):
 
     out = []
     for agent in true_agents:
-        updated_lamda = _lamda_fun(agent[2],rng)
-        updated_shape = _shape_fun(agent[2],rng)
-        out.append([updated_lamda, _state_mat_fun(tt,dt,"useless") @ agent[1], updated_shape])
+        # Update kinematic state
+        updated_state = _state_mat_fun(tt,dt,"useless") @ agent[1]
+
+        #Update shape state with random accel on rot, and principle axes
+        updated_shape_state = _shape_mat_fun(tt,dt,"useless") @ agent[2] + \
+            _shape_mat_acc(tt, dt, "useless") @ rng.multivariate_normal(np.zeros(6), np.diag(np.array([0, 0.2, 0, 0.0001, 0, 0.0001]))).reshape(6,1)
+        print(updated_shape_state)
+
+        # Update lambda based on shape
+        updated_lamda = _lamda_fun(updated_shape_state,rng)
+        
+
+        out.append([updated_lamda, updated_state, updated_shape_state])
     return out
 
 def _update_true_agents(true_agents:list, tt:float, dt:float, b_model:toyExtendedAgentBirth, rng:np.random.Generator):
@@ -173,22 +249,25 @@ def _update_true_agents(true_agents:list, tt:float, dt:float, b_model:toyExtende
     if any(np.abs(tt - b_model.birth_time) < 1e-8):
         # Birth description
         # Random state norm distributed around state_mean
-        # Random rate
-        # Random shape with size sample around shape_mean and have random rotation
         x = b_model.state_mean + (rng.multivariate_normal(np.zeros((b_model.state_mean.shape[0])), b_model.state_cov)).reshape(4,1)
+
+        # Random shape state
         shape_delta = rng.multivariate_normal(np.zeros((b_model.shape_mean.shape[0])), b_model.shape_cov)
-        shape = b_model.shape_mean + np.diag(shape_delta)
-        rot = rng.uniform(0,360)
-        rot_shape = _rotate_shape_mat(shape, rot)
-        rate = _lamda_fun(rot_shape, rng)
-        out.append([rate, x.copy(), rot_shape.copy()])
+        shape_state = b_model.shape_mean + shape_delta.reshape(6,1)
+        shape_state[0,0] = rng.uniform(0,360) # Uniformly random rotation angle
+
+        # Calculate lamda rate based on current shape
+        rate = _lamda_fun(shape_state, rng)
+        out.append([rate, x.copy(), shape_state.copy()])
     return out
 
 def _check_in_FOV(true_agents, obs_window):
     agent_in_FOV = []
     for agent in true_agents:
-        el = _gen_ellipse(agent[1], agent[2])
-        is_in_FOV = np.any(el[0,:] > obs_window[0,0]) and np.any(el[0,:] < obs_window[0,1]) and np.any(el[1,:] > obs_window[1,0]) and np.any(el[1,:] < obs_window[1,1])
+        shape_mat = _params2shapemat(agent[2][2,0], agent[2][4,0], agent[2][0,0])
+        el = _gen_ellipse(agent[1], shape_mat)
+        is_in_FOV = np.any(el[0,:] > obs_window[0,0]) and np.any(el[0,:] < obs_window[0,1]) and \
+            np.any(el[1,:] > obs_window[1,0]) and np.any(el[1,:] < obs_window[1,1]) and agent[0] > 0
         if is_in_FOV:
             agent_in_FOV.append(deepcopy(agent))
     return agent_in_FOV
@@ -200,7 +279,8 @@ def _gen_extented_meas(tt, agents_in_FOV, obs_window, rng:np.random.Generator):
             continue
         num_meas = rng.poisson(agent[0])
         agent_pos = np.array([agent[1][0,0], agent[1][2,0]])
-        m = rng.multivariate_normal(agent_pos, 0.20*agent[2],num_meas).reshape(num_meas,2).transpose().round()
+        shape_mat = _params2shapemat(agent[2][2,0], agent[2][4,0], agent[2][0,0])
+        m = rng.multivariate_normal(agent_pos, 0.25 * shape_mat,num_meas).reshape(num_meas,2).transpose().round()
         m = np.unique(m,axis=1)
         # Cull any measurment outside of FOV
         out_FOV = np.where(np.logical_or(m[1,:] < obs_window[1,0], m[1,:] > obs_window[1,1]))
@@ -224,10 +304,10 @@ def test_GGIW_PHD():
     birth_time = np.array([t0, 20])
 
     state_mean = np.array([128/2, -0.1, 130.0, -2.0]).reshape((4,1))
-    state_std = np.array([50.0, 0.2, 1.0, 0.1]).reshape((4,1))
+    state_std = np.array([25.0, 0.2, 1.0, 0.1]).reshape((4,1))
 
-    shape_mean = np.diag(np.array([(12 * REAL2PIX)**2, (10 * REAL2PIX)**2])) # Assume average storm diameter of 24km with some variation in shape
-    shape_std = np.array([10 * REAL2PIX, 10 * REAL2PIX]).reshape((2,1))
+    shape_mean = np.array([0, 0, (12 * REAL2PIX), 0, (12 * REAL2PIX), 0]).reshape((6,1)) # Assume average storm diameter of 24km with some variation in shape
+    shape_std = np.array([0,1, 10 * REAL2PIX, 0, 10 * REAL2PIX,0]).reshape((6,1))
 
     b_model = toyExtendedAgentBirth(num_agent, birth_time, state_mean, state_std, shape_mean, shape_std, rng)
 
@@ -254,6 +334,7 @@ def test_GGIW_PHD():
     global_true = []
     fig, ax = plt.subplots()
     artist = []
+
     for kk,tt in enumerate(time):
         # Propagate agents
         true_agents = _update_true_agents(true_agents, tt, dt, b_model, rng)
@@ -295,7 +376,7 @@ if __name__ == "__main__":
     # Test function here
     #############################################
     test_GGIW_PHD()
-    
+
 
     ############################################
     end = timer()
