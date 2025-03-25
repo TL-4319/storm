@@ -54,3 +54,5 @@ RUN python3 -m pip install --upgrade pip
 RUN pip install --upgrade setuptools
 
 USER $USERNAME
+
+RUN /bin/bash
