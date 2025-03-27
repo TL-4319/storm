@@ -47,7 +47,7 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 # install some python dependencies
-RUN pip install tox genbadge[tests,coverage] numpy matplotlib serums tornado netCDF4 gncpy pytest "setuptools_scm[toml]>=6.2" opencv-python
+RUN pip install tox genbadge[tests,coverage] numpy matplotlib serums tornado netCDF4 gncpy pytest "setuptools_scm[toml]>=6.2" opencv-python scikit-learn
 
 RUN python3 -m pip install --upgrade pip
 
