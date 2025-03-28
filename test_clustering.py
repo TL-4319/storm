@@ -294,8 +294,6 @@ def _gen_extented_meas(tt, agents_in_FOV, obs_window, rng:np.random.Generator):
     return meas_in
 
 def test_clustering():
-    
-    
     rng = rnd.default_rng(global_seed)
 
     tt = 0
@@ -329,11 +327,13 @@ def test_clustering():
     
     meas_gen = _gen_extented_meas(tt, targets, obs_window, rng)
 
-    clustering_params = carbs_clustering.DBSCANParameters()
+    clustering_params = carbs_clustering.DBSCANParameters(enable_sub=False)
     clustering = carbs_clustering.MeasurementClustering(clustering_params)
+    
     meas_list = clustering.cluster(meas_gen)
 
-    print(meas_list)
+
+    
 
     # For visualization
     fig, ax = plt.subplots()
