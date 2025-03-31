@@ -327,8 +327,10 @@ def test_clustering():
     
     meas_gen = _gen_extented_meas(tt, targets, obs_window, rng)
 
-    clustering_params = carbs_clustering.DBSCANParameters(enable_sub=False)
-    clustering = carbs_clustering.MeasurementClustering(clustering_params)
+    clustering_params = carbs_clustering.DBSCANParameters()
+    sub_partition_params = carbs_clustering.PoissonSubPartitionParameters()
+
+    clustering = carbs_clustering.MeasurementClustering(clustering_params, sub_partition_params)
     
     meas_list = clustering.cluster(meas_gen)
 
