@@ -332,7 +332,7 @@ def test_clustering():
     
     meas_list = clustering.cluster(meas_gen)
 
-
+    print(meas_list)
     
 
     # For visualization
