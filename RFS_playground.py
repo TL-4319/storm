@@ -119,7 +119,7 @@ for kk, t in enumerate(time[:-1]):
     try:
         phd.correct(timestep=t,meas_in=measurements)
     except:
-        print("Correct Step Failed")
+        print("Correct Step Failed") 
 
     # print(phd._Mixture)
 
@@ -135,6 +135,7 @@ for kk, t in enumerate(time[:-1]):
     ax.set_xlim((0,60))
     ax.set_ylim((0,60))
     ax.scatter(measurements[0, :], measurements[1, :], marker='.', label='sampled points',c='k')  
+    ax.grid()
 
     truth_model.plot_distributions(plt_inds=[0,1],ax=ax,edgecolor='k')
     
@@ -148,7 +149,5 @@ for kk, t in enumerate(time[:-1]):
     ax.set_aspect(1)
 
     plt.pause(0.2)
-
-    plt.savefig(f'image_set/{kk}.png')
 
 plt.show()
