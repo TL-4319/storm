@@ -83,7 +83,7 @@ def _gen_ellipse(x, shape):
     theta = np.linspace(0, 2*np.pi, 100)
     ellipsis = (np.sqrt(eig_val[None,:]) * eig_vec) @ [np.sin(theta), np.cos(theta)]
     ellipsis [0,:] += x[0]
-    ellipsis [1,:] += x[2]
+    ellipsis [1,:] += x[1]
     return ellipsis
 
 def _shapemat2params(shape):
@@ -141,9 +141,9 @@ def _rotate_shape_mat (shape, rot_deg:float):
     return rot_eigv_mat @ np.diag(eig_val) @ inv_rot_eigv_mat
 
 def _state_mat_fun(t, dt, useless):
-    return np.array([[1.0,  dt,     0,   0],
-                     [0,   1.0,     0,   0],
-                     [0,    0,    1.0,  dt],
+    return np.array([[1.0,  0.0,     dt,   0],
+                     [0,   1.0,     0,   dt],
+                     [0,    0,    1.0,  0],
                      [0,    0,      0, 1.0]])
 
 def _shape_mat_fun(t, dt, useless):
@@ -274,15 +274,16 @@ def _check_in_FOV(true_agents, obs_window):
     return agent_in_FOV
         
 def _gen_extented_meas(tt, agents_in_FOV, obs_window, rng:np.random.Generator):
-    meas_in = np.empty(shape=(2,1))
+    meas_in = []
+    
     for agent in agents_in_FOV:
         if rng.uniform(0, 1) > lightning_prob:
             continue
         num_meas = rng.poisson(agent[0])
-        agent_pos = np.array([agent[1][0,0], agent[1][2,0]])
+        agent_pos = np.array([agent[1][0,0], agent[1][1,0]])
         shape_mat = _params2shapemat(agent[2][2,0], agent[2][4,0], agent[2][0,0])
-        m = rng.multivariate_normal(agent_pos, 0.25 * shape_mat,num_meas).reshape(num_meas,2).transpose().round()
-        m = np.unique(m,axis=1)
+        m = rng.multivariate_normal(agent_pos, 0.25 * shape_mat,num_meas).reshape(num_meas,2).transpose().round() # Detection are rounded to int to simulate pixel index
+        m = np.unique(m,axis=1) # Cull repeated measurement 
         # Cull any measurment outside of FOV
         out_FOV = np.where(np.logical_or(m[1,:] < obs_window[1,0], m[1,:] > obs_window[1,1]))
         out_FOV = out_FOV[0]
@@ -290,7 +291,10 @@ def _gen_extented_meas(tt, agents_in_FOV, obs_window, rng:np.random.Generator):
         out_FOV = np.where(np.logical_or(m[0,:] < obs_window[0,0], m[0,:] > obs_window[0,1]))
         out_FOV = out_FOV[0]
         m = np.delete(m, out_FOV, 1)
-        meas_in = np.concatenate((meas_in, m), axis=1)
+        if m.shape[1] > 0:
+            # This to ensure list structure is identical
+            for ii in range (m.shape[1]):
+                meas_in.append(m[:,ii].copy().reshape(2,1)) 
     return meas_in
 
 def test_clustering():
@@ -298,20 +302,20 @@ def test_clustering():
 
     tt = 0
 
-    num_agent = 6
+    num_agent = 7
     birth_time = np.array([0, 20])
 
-    state_mean = np.array([65.0, -0.1, 65.0, -2.0]).reshape((4,1))
-    state_std = np.array([30.0, 0.2, 30.0, 0.1]).reshape((4,1))
+    state_mean = np.array([65.0, 65.0, 0.0, -2.0]).reshape((4,1))
+    state_std = np.array([30.0, 30.0, 0.0, 0.1]).reshape((4,1))
 
     shape_mean = np.array([0, 0, (12 * REAL2PIX), 0, (12 * REAL2PIX), 0]).reshape((6,1)) # Assume average storm diameter of 24km with some variation in shape
-    shape_std = np.array([0,1, 10 * REAL2PIX, 0, 10 * REAL2PIX,0]).reshape((6,1))
+    shape_std = np.array([0,1, 1 * REAL2PIX, 0, 1 * REAL2PIX,0]).reshape((6,1))
 
     b_model = toyExtendedAgentBirth(num_agent, birth_time, state_mean, state_std, shape_mean, shape_std, rng)
 
     targets = []
 
-    for ii in range(num_agent+1):
+    for ii in range(num_agent):
         # Birth description
         # Random state norm distributed around state_mean
         x = b_model.state_mean + (rng.multivariate_normal(np.zeros((b_model.state_mean.shape[0])), b_model.state_cov)).reshape(4,1)
@@ -334,8 +338,7 @@ def test_clustering():
     
     meas_list = clustering.cluster(meas_gen)
 
-
-    
+    print(meas_list)
 
     # For visualization
     fig, ax = plt.subplots()
@@ -344,10 +347,12 @@ def test_clustering():
     ax.set_xlim(tuple(obs_window[0,:]))
     ax.set_ylim(tuple(obs_window[1,:]))
     ax.set_aspect(1)
-    #ax = _draw_frame(targets, ax)
-    #ax.scatter(meas_gen[0,:],meas_gen[1,:], 10, "r" ,marker="*")
+    ax = _draw_frame(targets, ax)
+    #for meas in meas_gen:
+    #    ax.scatter(meas[0,:],meas[1,:], 10, "r" ,marker="*")
     for cluster in meas_list:
-        ax.scatter(cluster[0,:],cluster[1,:], 10 ,marker="*")
+        cluster_array = np.array(cluster).reshape(len(cluster), 2).transpose()
+        ax.scatter(cluster_array[0,:],cluster_array[1,:], 10 ,marker="*")
 
 
 if __name__ == "__main__":

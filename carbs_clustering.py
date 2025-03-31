@@ -18,16 +18,25 @@ class CARBS_DBSCAN:
                                         algorithm=params["algorithm"], leaf_size=params["leaf_size"],\
                                             p=params["p"], n_jobs=params["n_jobs"])
 
-    def cluster(self, meas_set:np.ndarray) -> list:
-        self._dbscan.fit(meas_set.transpose())
+    def cluster(self, meas_set:list) -> list:
+        res = []
+        num_meas = len(meas_set)
+        if num_meas == 0:
+            return res
+        
+        meas_d = meas_set[0].shape[0]
+        meas_set_array = np.array(meas_set).reshape(num_meas, meas_d)
+        self._dbscan.fit(meas_set_array)
         labels = self._dbscan.labels_
         unique_labels = set(labels)
         
-        res = []
         for lab in unique_labels:
+            cur_cluster = []
             ind = np.where(labels == lab)
-            res.append(meas_set[:,np.where(labels == lab)])
-
+            meas_in_cluster = meas_set_array[np.where(labels == lab),:]
+            for ii in range(meas_in_cluster.shape[1]):
+                cur_cluster.append(meas_in_cluster[:,ii,:].reshape(meas_d,1))
+            res.append(cur_cluster)
         return res
 
 class DistPartitionParameters:
@@ -45,13 +54,18 @@ class DistPartition:
         self._min_dist_sq = self._min_dist_sq * self._min_dist_sq
         self._lambda = params["meas_lambda"]
 
-    def cluster(self, meas_set:np.ndarray) -> list:
+    def cluster(self, meas_set:list) -> list:
         res = []
-
-        num_meas = meas_set.shape[1]
+        num_meas = len(meas_set)
+        if num_meas == 0:
+            return res
+        
+        meas_d = meas_set[0].shape[0]
+        meas_set_array = np.array(meas_set).reshape(num_meas, meas_d)
+        
         # Calc squared distance matrix
-        x_mat = np.tile(meas_set[0,:],(num_meas,1))
-        y_mat = np.tile(meas_set[1,:],(num_meas,1))
+        x_mat = np.tile(meas_set_array[0,:],(num_meas,1))
+        y_mat = np.tile(meas_set_array[1,:],(num_meas,1))
         dist_mat_sq = np.square(x_mat - x_mat.transpose()) + np.square(y_mat - y_mat.transpose())
         print("Distance partition not implemented")
         
@@ -78,8 +92,10 @@ class MeasurementClustering:
         # Construct the clustering object with attibutes depending on the input dict
         if self._method == "DBSCAN":
             self._clustering = CARBS_DBSCAN(clust_method_dict)
-        elif self._method == "DISTANCE":
-            self._clustering = DistPartition(clust_method_dict)
+        #elif self._method == "DISTANCE":
+        #    self._clustering = DistPartition(clust_method_dict)
+        else:
+            raise Exception("Clustering method not implemented")
 
         # Construct subpartition object if configured. 
         if sub_part_method_dict is not None:
@@ -87,7 +103,8 @@ class MeasurementClustering:
             self._sub_part_method = sub_part_method_dict["method"]
             if self._sub_part_method == "PoisSub":
                 self._sub_partition = PoissonSubPartition(sub_part_method_dict)
-
+        else:
+            self._enable_sub = False
         pass
 
     def method(self):
@@ -96,8 +113,19 @@ class MeasurementClustering:
     def subpartition_state(self):
         return self._enable_sub
 
-    def cluster(self, meas_set:np.ndarray, pred_GGIW:GGIWMixture=None) -> list:
-        # Cluster the measurement set to list of partition which are np.ndarrays 
+    def cluster(self, meas_set:list, pred_GGIW:GGIWMixture=None) -> list:
+        # Cluster the measurement set to list of partition with the following structure
+        # [all_cluster] -> list
+        #     |_  [cluster_1] -> list
+        #     |        |_ [meas_1] -> dx1 np.array
+        #     |        |_           ...
+        #     |        |_ [meas_n1] -> dx1 np.array
+        #     |
+        #     |_  [cluster_2] -> list
+        #     |        |_ [meas_1] -> dx1 np.array
+        #     |        |_           ...
+        #     |        |_ [meas_n2] -> dx1 np.array
+        #     |_                ...
         res = self._clustering.cluster(meas_set)
 
         if self._enable_sub:
