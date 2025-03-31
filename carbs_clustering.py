@@ -53,7 +53,7 @@ class DistPartition:
         x_mat = np.tile(meas_set[0,:],(num_meas,1))
         y_mat = np.tile(meas_set[1,:],(num_meas,1))
         dist_mat_sq = np.square(x_mat - x_mat.transpose()) + np.square(y_mat - y_mat.transpose())
-
+        print("Distance partition not implemented")
         
 
         return res
