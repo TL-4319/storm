@@ -1148,6 +1148,8 @@ def test_PHD():  # noqa
 
         meas_in = _gen_meas(tt, true_agents, filt.proc_noise, filt.meas_noise, rng)
 
+        print(meas_in)
+
         filt_args = {"meas_fun_args": meas_fun_args}
         phd.correct(
             tt, meas_in, meas_mat_args={}, est_meas_args={}, filt_args=filt_args
@@ -4970,14 +4972,14 @@ def main():
 
     start = timer()
 
-    # test_PHD()
+    test_PHD()
     # test_PHD_spawning()
     # test_CPHD()
     # test_CPHD_spawning()
     # test_IMM_PHD()
     # test_IMM_CPHD()
 
-    test_GLMB()
+    #test_GLMB()
     # test_STM_GLMB()
     # test_SMC_GLMB()
     # test_USMC_GLMB()

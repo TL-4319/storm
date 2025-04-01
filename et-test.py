@@ -16,6 +16,8 @@ from carbs.extended_targets.GGIW_Serums_Models import GGIW, GGIWMixture
 from carbs.extended_targets.GGIW_EKF import GGIW_ExtendedKalmanFilter
 import carbs.extended_targets.GGIW_RFS as GGIW_RFS
 
+import carbs_clustering
+
 DEG2RAD = 0.0174533
 RAD2DEG = 57.2958
 
@@ -25,7 +27,7 @@ REAL2PIX = 1/PIX2REAL
 global_seed = 420
 debug_plots = 0
 
-lightning_prob = 0.5
+lightning_prob = 1.0
 
 obs_window = np.array([[0, 129],
                        [0, 129]]) 
@@ -46,10 +48,10 @@ obs_window = np.array([[0, 129],
 
 ## 2D Constant velocity model
 
-# x = [pos_x, vel_x, pos_y, vel_y]
-# A = [ 1 dt  0  0
-#       0  1  0  0
-#       0  0  1  dt
+# x = [pos_x, pos_y, vel_x, vel_y]
+# A = [ 1 0  dt  0
+#       0  1  0  dt
+#       0  0  1  0
 #       0  0  0  1 ]
 
 
@@ -82,7 +84,7 @@ def _gen_ellipse(x, shape):
     theta = np.linspace(0, 2*np.pi, 100)
     ellipsis = (np.sqrt(eig_val[None,:]) * eig_vec) @ [np.sin(theta), np.cos(theta)]
     ellipsis [0,:] += x[0]
-    ellipsis [1,:] += x[2]
+    ellipsis [1,:] += x[1]
     return ellipsis
 
 def _shapemat2params(shape):
@@ -140,9 +142,9 @@ def _rotate_shape_mat (shape, rot_deg:float):
     return rot_eigv_mat @ np.diag(eig_val) @ inv_rot_eigv_mat
 
 def _state_mat_fun(t, dt, useless):
-    return np.array([[1.0,  dt,     0,   0],
-                     [0,   1.0,     0,   0],
-                     [0,    0,    1.0,  dt],
+    return np.array([[1.0,  0,     dt,   0],
+                     [0,   1.0,     0,   dt],
+                     [0,    0,    1.0,  0],
                      [0,    0,      0, 1.0]])
 
 def _shape_mat_fun(t, dt, useless):
@@ -232,7 +234,6 @@ def _prop_true(true_agents, tt, dt, rng):
         #Update shape state with random accel on rot, and principle axes
         updated_shape_state = _shape_mat_fun(tt,dt,"useless") @ agent[2] + \
             _shape_mat_acc(tt, dt, "useless") @ rng.multivariate_normal(np.zeros(6), np.diag(np.array([0, 0.2, 0, 0.0001, 0, 0.0001]))).reshape(6,1)
-        print(updated_shape_state)
 
         # Update lambda based on shape
         updated_lamda = _lamda_fun(updated_shape_state,rng)
@@ -278,10 +279,10 @@ def _gen_extented_meas(tt, agents_in_FOV, obs_window, rng:np.random.Generator):
         if rng.uniform(0, 1) > lightning_prob:
             continue
         num_meas = rng.poisson(agent[0])
-        agent_pos = np.array([agent[1][0,0], agent[1][2,0]])
+        agent_pos = np.array([agent[1][0,0], agent[1][1,0]])
         shape_mat = _params2shapemat(agent[2][2,0], agent[2][4,0], agent[2][0,0])
-        m = rng.multivariate_normal(agent_pos, 0.25 * shape_mat,num_meas).reshape(num_meas,2).transpose().round()
-        m = np.unique(m,axis=1)
+        m = rng.multivariate_normal(agent_pos, 0.25 * shape_mat,num_meas).reshape(num_meas,2).transpose().round() # Detection are rounded to int to simulate pixel index
+        m = np.unique(m,axis=1) # Cull repeated measurement 
         # Cull any measurment outside of FOV
         out_FOV = np.where(np.logical_or(m[1,:] < obs_window[1,0], m[1,:] > obs_window[1,1]))
         out_FOV = out_FOV[0]
@@ -289,7 +290,10 @@ def _gen_extented_meas(tt, agents_in_FOV, obs_window, rng:np.random.Generator):
         out_FOV = np.where(np.logical_or(m[0,:] < obs_window[0,0], m[0,:] > obs_window[0,1]))
         out_FOV = out_FOV[0]
         m = np.delete(m, out_FOV, 1)
-        meas_in.append(m.copy())  
+        if m.shape[1] > 0:
+            # This to ensure list structure is identical
+            for ii in range (m.shape[1]):
+                meas_in.append(m[:,ii].copy().reshape(2,1))  
     return meas_in
 
 def test_GGIW_PHD():
@@ -300,42 +304,60 @@ def test_GGIW_PHD():
     dt = 1
     t0, t1 = 0, 90 + dt # Roughly the view time of a region by ISS of 90 s
 
+    # Set up true agent and scenarios
     num_agent = 5
     birth_time = np.array([t0, 20])
 
-    state_mean = np.array([128/2, -0.1, 130.0, -2.0]).reshape((4,1))
-    state_std = np.array([25.0, 0.2, 1.0, 0.1]).reshape((4,1))
+    state_mean = np.array([128.0/2, 130.0, -0.1, -2.0]).reshape((4,1))
+    state_std = np.array([25.0, 1.0, 0.5, 0.1]).reshape((4,1))
 
     shape_mean = np.array([0, 0, (12 * REAL2PIX), 0, (12 * REAL2PIX), 0]).reshape((6,1)) # Assume average storm diameter of 24km with some variation in shape
     shape_std = np.array([0,1, 10 * REAL2PIX, 0, 10 * REAL2PIX,0]).reshape((6,1))
 
     b_model = toyExtendedAgentBirth(num_agent, birth_time, state_mean, state_std, shape_mean, shape_std, rng)
-
-    birth_model = GGIWMixture(alphas=[10.0], 
-            betas=[1/2.0],
-            means=[np.array([65, 0, 65, 0]).reshape((4, 1))],
-            covariances=[np.diag([65,10,65,10])],
-            IWdofs=[8.0],
-            IWshapes=[np.array([[25, 5],[5, 25]])],
-            weights=[1.0])
     
-    # filt = GGIW_ExtendedKalmanFilter(forgetting_factor=3,tau=1)
-    # filt.set_state_model(dyn_obj=gdyn.double_integrator()) 
-    # filt.set_measurement_model(meas_mat=np.array([[1, 0, 0, 0], [0, 0, 1, 0]]))
+    # Set up tracker
+    tracker_birth_model = GGIWMixture(alphas=[15.0], 
+            betas=[1.0],
+            means=[np.array([128.0/2, 129, 0, 0]).reshape((4, 1))],
+            covariances=[np.diag([64**2,2**2,100,100])],
+            IWdofs=[8.0],
+            IWshapes=[np.array([[20, 0],[0, 20]])])
+    
+    filt = GGIW_ExtendedKalmanFilter(forgetting_factor=3, tau=1)
+    filt.set_state_model(dyn_obj=gdyn.DoubleIntegrator()) 
+    filt.set_measurement_model(meas_mat=np.array([[1, 0, 0, 0], [0, 1, 0, 0]]))
+    filt.proc_noise = np.diag([10, 1, 10, 1])
+    filt.meas_noise = 1 * np.eye(2)
+    filt.dt = dt
 
-    # filt.proc_noise = np.diag([10, 1, 10, 1])
-    # filt.meas_noise = 0.2 * np.eye(2)
+    state_mat_args = (dt,)
 
-    # filt.dt = dt
+    clustering_params = carbs_clustering.DBSCANParameters()
+    clustering = carbs_clustering.MeasurementClustering(clustering_params)
+
+    RFS_base_args = {
+        "prob_detection": 0.99,
+        "prob_survive": 0.98,
+        "in_filter": filt,
+        "birth_terms": tracker_birth_model,
+        "clutter_den": 1e-7,
+        "clutter_rate": 1e-7,
+    }
+    phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.2,merge_threshold=4,**RFS_base_args)
+    phd.gating_on = False
 
 
+    # Run scenarios
     time = np.arange(t0, t1, dt)
     true_agents = []    # Each agent is a list [lambda, x, shape]
     global_true = []
     fig, ax = plt.subplots()
     artist = []
+    fail_counter = 0
 
     for kk,tt in enumerate(time):
+        ## Generate true states and sample measurements
         # Propagate agents
         true_agents = _update_true_agents(true_agents, tt, dt, b_model, rng)
 
@@ -345,12 +367,30 @@ def test_GGIW_PHD():
         global_true.append(deepcopy(agent_in_FOV))
         
         # Generate measurements
-        meas_in = _gen_extented_meas(tt, agent_in_FOV, obs_window, rng)
+        meas = _gen_extented_meas(tt, agent_in_FOV, obs_window, rng)
+        meas_array = np.array(meas).reshape(2,len(meas))
+          
+        ## Run filter
+        phd.predict(tt, filt_args=(dt,))
 
-        # Unpartition measurements into list of arrays 
-        measurements = [vec for arr in meas_in for vec in arr.T]
+        phd.correct(timestep=tt, meas_in=meas)
+        
+        #try:
+        #    phd.correct(timestep=tt, meas_in=meas)
+        #except:
+        #    print("Correct fail")
+        #    fail_counter += 1
+            
+        
+        if fail_counter > 10:
+            break
 
-        # For visualization
+        phd.cleanup()
+
+        mix = phd.extract_mixture()
+
+
+        ## For visualization
         ax.clear()
         title_str = "t = " + str(tt) + " s. Num in FOV = " + str(str(len(agent_in_FOV)))
         ax.set_title(title_str)
@@ -359,10 +399,14 @@ def test_GGIW_PHD():
         ax.set_ylim(tuple(obs_window[1,:]))
         ax.set_aspect(1)
         ax = _draw_frame(true_agents, ax)
-        for meas in meas_in:
-            ax.scatter(meas[0],meas[1], 10, "r" ,marker="*")
+        #mix.plot_distributions(plt_inds=[0,1],ax=ax,edgecolor='r',linewidth=3)
+        for each_meas in meas:
+            ax.scatter(each_meas[0],each_meas[1], 10, "r" ,marker="*")
             
         plt.pause(0.2)
+        if len(true_agents) > 2:
+            
+            break
 
 if __name__ == "__main__":
     from timeit import default_timer as timer

@@ -49,8 +49,8 @@ filt.dt = dt
 state_mat_args = (dt,)
 
 RFS_base_args = {
-        "prob_detection": 0.999999,
-        "prob_survive": 0.6,
+        "prob_detection": 0.99,
+        "prob_survive": 0.99,
         "in_filter": filt,
         "birth_terms": birth_model,
         "clutter_den": 1e-7,
@@ -105,22 +105,19 @@ for kk, t in enumerate(time[:-1]):
         new_mean[ii]  = truth_kinematics.propagate_state(t,truth_model._distributions[ii].mean,state_args=(dt,)).flatten()
     truth_model.means = new_mean
     
+    measurements = []
     for ii in range(len(truth_model._distributions)):
         temp = (truth_model._distributions[ii].sample_measurements(xy_inds=[0,1],random_extent=False))
-        if ii == 0:
-            x = temp[0]
-            y = temp[1] 
-        else:
-            x = np.append(x,temp[0])
-            y = np.append(y,temp[1])
+        for ii in range(temp.shape[1]):
+            measurements.append(temp[:,ii].reshape((2,1)))
 
-    measurements = np.array((x,y)) 
+    #measurements = np.array((x,y)) 
 
     # print(measurements)
 
     phd.correct(timestep=t,meas_in=measurements)
 
-    # print(phd._Mixture)
+    print(phd._Mixture)
 
     phd.cleanup()
 
@@ -133,7 +130,8 @@ for kk, t in enumerate(time[:-1]):
     ax.plot([0],[0])
     ax.set_xlim((-40,60))
     ax.set_ylim((-20,60))
-    ax.scatter(measurements[0, :], measurements[1, :], marker='.', label='sampled points',c='k',s=0.5)  
+    for each_meas in measurements:
+        ax.scatter(each_meas[0, :], each_meas[1, :], marker='.', label='sampled points',c='k',s=0.5)  
     ax.grid()
 
     truth_model.plot_distributions(plt_inds=[0,1],num_std=1,ax=ax,edgecolor='k')
