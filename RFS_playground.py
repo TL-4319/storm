@@ -109,11 +109,9 @@ for kk, t in enumerate(time[:-1]):
     for ii in range(len(truth_model._distributions)):
         temp = (truth_model._distributions[ii].sample_measurements(xy_inds=[0,1],random_extent=False))
         for ii in range(temp.shape[1]):
-            measurements.append(temp[:,ii].reshape((2,1)))
+            measurements.append(temp[:,ii].reshape((2,1))) 
 
-    #measurements = np.array((x,y)) 
-
-    # print(measurements)
+    #print(measurements)
 
     phd.correct(timestep=t,meas_in=measurements)
 
