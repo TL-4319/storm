@@ -15,7 +15,7 @@ import carbs.extended_targets.GGIW_RFS as GGIW_RFS
 
 import carbs_clustering
 
-clustering_params = carbs_clustering.DBSCANParameters(enable_sub=False)
+clustering_params = carbs_clustering.DBSCANParameters()
 clustering = carbs_clustering.MeasurementClustering(clustering_params)
 
 dt = 0.5
@@ -133,12 +133,12 @@ for kk, t in enumerate(time[:-1]):
     ax.plot([0],[0])
     ax.set_xlim((-40,60))
     ax.set_ylim((-20,60))
-    ax.scatter(measurements[0, :], measurements[1, :], marker='.', label='sampled points',c='k',s=0.25)  
+    ax.scatter(measurements[0, :], measurements[1, :], marker='.', label='sampled points',c='k',s=0.5)  
     ax.grid()
 
     truth_model.plot_distributions(plt_inds=[0,1],num_std=1,ax=ax,edgecolor='k')
     
-    mix.plot_confidence_extents(h_min=0.05, h_max=0.95, plt_inds=[0, 1], ax=ax, edgecolor='r', linewidth=1.5) #(plt_inds=[0,1],ax=ax,edgecolor='r',linewidth=3)
+    mix.plot_confidence_extents(h=0.95, plt_inds=[0, 1], ax=ax, edgecolor='r', linewidth=1.5) #(plt_inds=[0,1],ax=ax,edgecolor='r',linewidth=3)
 
     # phd._Mixture.plot_distributions(plt_inds=[0,1],ax=ax,edgecolor='b')
 
