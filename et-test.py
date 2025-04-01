@@ -305,7 +305,7 @@ def test_GGIW_PHD():
     t0, t1 = 0, 90 + dt # Roughly the view time of a region by ISS of 90 s
 
     # Set up true agent and scenarios
-    num_agent = 5
+    num_agent = 2
     birth_time = np.array([t0, 20])
 
     state_mean = np.array([128.0/2, 130.0, -0.1, -2.0]).reshape((4,1))
@@ -320,9 +320,10 @@ def test_GGIW_PHD():
     tracker_birth_model = GGIWMixture(alphas=[15.0], 
             betas=[1.0],
             means=[np.array([128.0/2, 129, 0, 0]).reshape((4, 1))],
-            covariances=[np.diag([64**2,2**2,100,100])],
-            IWdofs=[8.0],
-            IWshapes=[np.array([[20, 0],[0, 20]])])
+            covariances=[np.diag([64**2,2**2,70,70])],
+            IWdofs=[100.0],
+            IWshapes=[np.array([[20, 0],[0, 20]])],
+            weights=[0.1])
     
     filt = GGIW_ExtendedKalmanFilter(forgetting_factor=3, tau=1)
     filt.set_state_model(dyn_obj=gdyn.DoubleIntegrator()) 
@@ -344,7 +345,7 @@ def test_GGIW_PHD():
         "clutter_den": 1e-7,
         "clutter_rate": 1e-7,
     }
-    phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.2,merge_threshold=4,**RFS_base_args)
+    phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.4,merge_threshold=15,prune_threshold=0.1,**RFS_base_args)
     phd.gating_on = False
 
 
@@ -368,26 +369,21 @@ def test_GGIW_PHD():
         
         # Generate measurements
         meas = _gen_extented_meas(tt, agent_in_FOV, obs_window, rng)
+        print(meas)
         meas_array = np.array(meas).reshape(2,len(meas))
           
         ## Run filter
         phd.predict(tt, filt_args=(dt,))
 
         phd.correct(timestep=tt, meas_in=meas)
-        
-        #try:
-        #    phd.correct(timestep=tt, meas_in=meas)
-        #except:
-        #    print("Correct fail")
-        #    fail_counter += 1
-            
-        
-        if fail_counter > 10:
-            break
 
         phd.cleanup()
 
         mix = phd.extract_mixture()
+
+        #print("Extracted mix")
+        #print(mix)
+        print(phd._Mixture)
 
 
         ## For visualization
@@ -402,11 +398,10 @@ def test_GGIW_PHD():
         #mix.plot_distributions(plt_inds=[0,1],ax=ax,edgecolor='r',linewidth=3)
         for each_meas in meas:
             ax.scatter(each_meas[0],each_meas[1], 10, "r" ,marker="*")
-            
+        mix.plot_confidence_extents(h=0.95, plt_inds=[0, 1], ax=ax, edgecolor='r', linewidth=1.5)
         plt.pause(0.2)
-        if len(true_agents) > 2:
-            
-            break
+
+
 
 if __name__ == "__main__":
     from timeit import default_timer as timer

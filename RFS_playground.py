@@ -33,7 +33,8 @@ birth_model = GGIWMixture(alphas=[5.0],
             means=[np.array([35, 25, 0, 0]).reshape((4, 1))],
             covariances=[np.diag([50**2,50**2,100,100])],
             IWdofs=[80.0],
-            IWshapes=[np.array([[70, 0],[0, 70]])])
+            IWshapes=[np.array([[70, 0],[0, 70]])],
+            weights=[1.0])
 
 # birth_model.weights = [0.5]
 
@@ -49,7 +50,7 @@ filt.dt = dt
 state_mat_args = (dt,)
 
 RFS_base_args = {
-        "prob_detection": 0.99,
+        "prob_detection": 0.6,
         "prob_survive": 0.99,
         "in_filter": filt,
         "birth_terms": birth_model,
@@ -115,7 +116,7 @@ for kk, t in enumerate(time[:-1]):
 
     phd.correct(timestep=t,meas_in=measurements)
 
-    print(phd._Mixture)
+    
 
     phd.cleanup()
 
