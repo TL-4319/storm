@@ -120,8 +120,8 @@ for kk, t in enumerate(time[:-1]):
 
     phd.cleanup()
 
-    # print("Cleaned up Mixture: \n\n")
-    # print(phd._Mixture)
+    print("Cleaned up Mixture: \n\n")
+    print(phd._Mixture)
 
     mix = phd.extract_mixture()
 
