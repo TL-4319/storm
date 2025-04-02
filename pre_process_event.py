@@ -12,8 +12,8 @@ import pickle
 
 ##### Input params here
 # Input orbit granule
-granules = "20231101_195517"
-dt = 0.1
+granules = "20231101_151645"
+dt = 1
 video_size = (300, 300) # Video is resized for clarity. Measurements vectors are kept in 128x128 size
 
 ##### The rest of the scrip

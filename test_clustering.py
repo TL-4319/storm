@@ -23,7 +23,7 @@ RAD2DEG = 57.2958
 PIX2REAL = 4.26 # rough conversion from pixel unit to metric unit: ISS LIS has ~550km swath and sensor is 129 x 129 pix 
 REAL2PIX = 1/PIX2REAL
 
-global_seed = 420
+global_seed = 69
 debug_plots = 0
 
 lightning_prob = 1.0
@@ -331,7 +331,7 @@ def test_clustering():
     
     meas_gen = _gen_extented_meas(tt, targets, obs_window, rng)
 
-    clustering_params = carbs_clustering.DBSCANParameters()
+    clustering_params = carbs_clustering.DBSCANParameters(min_samples=10)
     sub_partition_params = carbs_clustering.PoissonSubPartitionParameters()
 
     clustering = carbs_clustering.MeasurementClustering(clustering_params, sub_partition_params)
@@ -350,7 +350,9 @@ def test_clustering():
     ax = _draw_frame(targets, ax)
     #for meas in meas_gen:
     #    ax.scatter(meas[0,:],meas[1,:], 10, "r" ,marker="*")
-    for cluster in meas_list:
+    for ii in range(1,len(meas_list)):
+        cluster = meas_list[ii]
+    #for cluster in meas_list:
         cluster_array = np.array(cluster).reshape(len(cluster), 2).transpose()
         ax.scatter(cluster_array[0,:],cluster_array[1,:], 10 ,marker="*")
 

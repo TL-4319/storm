@@ -15,7 +15,7 @@ import carbs.extended_targets.GGIW_RFS as GGIW_RFS
 
 import carbs_clustering
 
-clustering_params = carbs_clustering.DBSCANParameters()
+clustering_params = carbs_clustering.DBSCANParameters(min_samples=10, eps=10)
 clustering = carbs_clustering.MeasurementClustering(clustering_params)
 
 dt = 0.5
@@ -32,18 +32,22 @@ birth_model = GGIWMixture(alphas=[3.0],
             betas=[1.0],
             means=[np.array([15, 15, 0, 0]).reshape((4, 1))],
             covariances=[np.diag([50**2,50**2,100,100])],
-            IWdofs=[20.0],
-            IWshapes=[np.array([[70, 0],[0, 70]])],
-            weights=[0.1])
+            IWdofs=[10.0],
+            IWshapes=[np.array([[7000, 0],[0, 7000]])],
+            weights=[0.01])
 
 # birth_model.weights = [0.5]
 
-filt = GGIW_ExtendedKalmanFilter(forgetting_factor=1,tau=120)
+# amount of timesteps to based gamma estimation on
+w_e = 2
+eta_k = w_e / (w_e - 1) # forgetting factor
+
+filt = GGIW_ExtendedKalmanFilter(forgetting_factor=eta_k,tau=1, cont_cov=True)
 filt.set_state_model(dyn_obj=gdyn.DoubleIntegrator()) 
 filt.set_measurement_model(meas_mat=np.array([[1, 0, 0, 0], [0, 1, 0, 0]]))
 
-filt.proc_noise = np.diag([0.01, 0.02, 0.01, 0.02])
-filt.meas_noise = 10 * np.eye(2)                          # Note: Higher meas noise keeps singularities from happening during the inverse wishart correction step
+filt.proc_noise = np.diag([0.01, 0.01, 0.01, 0.01])
+filt.meas_noise = 16 * np.eye(2)                          # Note: Higher meas noise keeps singularities from happening during the inverse wishart correction step
 
 filt.dt = dt
 
@@ -54,10 +58,11 @@ RFS_base_args = {
         "prob_survive": 0.99,
         "in_filter": filt,
         "birth_terms": birth_model,
-        "clutter_den": 1e-7,
-        "clutter_rate": 1e-7,
+        "clutter_den": 0.1,
+        "clutter_rate": 1,
     }
-phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.5,merge_threshold=16,**RFS_base_args)
+phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.4,\
+                        merge_threshold=16, prune_threshold=0.001,**RFS_base_args)
 phd.gating_on = False
 
 # phd.predict(timestep=1, filt_args=(dt,))
@@ -85,7 +90,7 @@ phd.gating_on = False
 
 truth_kinematics = gdyn.DoubleIntegrator()
 
-truth_model = GGIWMixture(alphas=[10.0, 10.0, 10.0], 
+truth_model = GGIWMixture(alphas=[100.0, 100.0, 100.0], 
             betas=[1.0, 1.0, 1.0],
             means=[np.array([50, 15, -1, 0]).reshape((4, 1)),np.array([10, 5, 0, 1]).reshape((4, 1)),np.array([50, 50, -2, -2]).reshape((4, 1))],
             covariances=[np.diag([0,0,0,0]),np.diag([0,0,0,0]),np.diag([0,0,0,0])],
@@ -114,6 +119,7 @@ for kk, t in enumerate(time[:-1]):
         for ii in range(temp.shape[1]):
             measurements.append(temp[:,ii].reshape((2,1))) 
 
+    
     #print(measurements)
 
     phd.correct(timestep=t,meas_in=measurements)
@@ -123,7 +129,7 @@ for kk, t in enumerate(time[:-1]):
     phd.cleanup(enable_merge=True)
 
     print("Cleaned up Mixture: \n\n")
-    print(phd._Mixture)
+    #print(phd._Mixture)
 
     mix = phd.extract_mixture()
 
@@ -142,7 +148,7 @@ for kk, t in enumerate(time[:-1]):
     # phd._Mixture.plot_distributions(plt_inds=[0,1],ax=ax,edgecolor='b')
 
     print("Extracted Mixture: \n\n")
-    print(mix)
+    #print(mix)
 
     # print("Sum of weights: \n")
     # print(np.sum(phd._Mixture.weights))
@@ -151,7 +157,7 @@ for kk, t in enumerate(time[:-1]):
 
     plt.pause(0.2) 
 
-    plt.savefig(f"image_set/{kk}.png")
+    #plt.savefig(f"image_set/{kk}.png")
 
 plt.show()
 
