@@ -19,7 +19,7 @@ clustering_params = carbs_clustering.DBSCANParameters()
 clustering = carbs_clustering.MeasurementClustering(clustering_params)
 
 dt = 0.5
-t0, t1 = 0, 30 + dt  
+t0, t1 = 0, 45 + dt  
 
 # birth_model = GGIWMixture(alphas=[5.0, 5.0], 
 #             betas=[1.0, 1.0],
@@ -28,13 +28,13 @@ t0, t1 = 0, 30 + dt
 #             IWdofs=[80.0, 80.0],
 #             IWshapes=[np.array([[70, 25],[25, 70]]),np.array([[100, 25],[25, 100]])])
 
-birth_model = GGIWMixture(alphas=[100.0], 
+birth_model = GGIWMixture(alphas=[3.0], 
             betas=[1.0],
             means=[np.array([15, 15, 0, 0]).reshape((4, 1))],
             covariances=[np.diag([50**2,50**2,100,100])],
             IWdofs=[20.0],
             IWshapes=[np.array([[70, 0],[0, 70]])],
-            weights=[1])
+            weights=[0.1])
 
 # birth_model.weights = [0.5]
 
@@ -151,7 +151,7 @@ for kk, t in enumerate(time[:-1]):
 
     plt.pause(0.2) 
 
-    # plt.savefig(f"image_set/{kk}.png")
+    plt.savefig(f"image_set/{kk}.png")
 
 plt.show()
 
