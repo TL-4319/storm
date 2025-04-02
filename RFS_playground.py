@@ -28,36 +28,36 @@ t0, t1 = 0, 30 + dt
 #             IWdofs=[80.0, 80.0],
 #             IWshapes=[np.array([[70, 25],[25, 70]]),np.array([[100, 25],[25, 100]])])
 
-birth_model = GGIWMixture(alphas=[5.0], 
+birth_model = GGIWMixture(alphas=[100.0], 
             betas=[1.0],
-            means=[np.array([35, 25, 0, 0]).reshape((4, 1))],
+            means=[np.array([15, 15, 0, 0]).reshape((4, 1))],
             covariances=[np.diag([50**2,50**2,100,100])],
-            IWdofs=[80.0],
+            IWdofs=[20.0],
             IWshapes=[np.array([[70, 0],[0, 70]])],
-            weights=[1.0])
+            weights=[1])
 
 # birth_model.weights = [0.5]
 
-filt = GGIW_ExtendedKalmanFilter(forgetting_factor=3,tau=1)
+filt = GGIW_ExtendedKalmanFilter(forgetting_factor=1,tau=120)
 filt.set_state_model(dyn_obj=gdyn.DoubleIntegrator()) 
 filt.set_measurement_model(meas_mat=np.array([[1, 0, 0, 0], [0, 1, 0, 0]]))
 
-filt.proc_noise = np.diag([10, 1, 10, 1])
-filt.meas_noise = 0.5 * np.eye(2)
+filt.proc_noise = np.diag([0.01, 0.02, 0.01, 0.02])
+filt.meas_noise = 10 * np.eye(2)                          # Note: Higher meas noise keeps singularities from happening during the inverse wishart correction step
 
 filt.dt = dt
 
 state_mat_args = (dt,)
 
 RFS_base_args = {
-        "prob_detection": 0.6,
+        "prob_detection": 0.9,
         "prob_survive": 0.99,
         "in_filter": filt,
         "birth_terms": birth_model,
         "clutter_den": 1e-7,
         "clutter_rate": 1e-7,
     }
-phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.3,merge_threshold=4,**RFS_base_args)
+phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.5,merge_threshold=16,**RFS_base_args)
 phd.gating_on = False
 
 # phd.predict(timestep=1, filt_args=(dt,))
@@ -85,8 +85,8 @@ phd.gating_on = False
 
 truth_kinematics = gdyn.DoubleIntegrator()
 
-truth_model = GGIWMixture(alphas=[5.0, 5.0, 5.0], 
-            betas=[1/20.0, 1/20.0, 1/20.0],
+truth_model = GGIWMixture(alphas=[10.0, 10.0, 10.0], 
+            betas=[1.0, 1.0, 1.0],
             means=[np.array([50, 15, -1, 0]).reshape((4, 1)),np.array([10, 5, 0, 1]).reshape((4, 1)),np.array([50, 50, -2, -2]).reshape((4, 1))],
             covariances=[np.diag([0,0,0,0]),np.diag([0,0,0,0]),np.diag([0,0,0,0])],
             IWdofs=[30.0, 30.0, 30.0],
@@ -97,6 +97,8 @@ time = np.arange(t0, t1, dt)
 # print(filt._dyn_obj)
 
 fig, ax = plt.subplots()
+fig.set_figheight(9)
+fig.set_figwidth(13)
 
 for kk, t in enumerate(time[:-1]):
     phd.predict(t, filt_args=(dt,))
@@ -118,7 +120,7 @@ for kk, t in enumerate(time[:-1]):
 
     
 
-    phd.cleanup()
+    phd.cleanup(enable_merge=True)
 
     print("Cleaned up Mixture: \n\n")
     print(phd._Mixture)
@@ -130,7 +132,7 @@ for kk, t in enumerate(time[:-1]):
     ax.set_xlim((-40,60))
     ax.set_ylim((-20,60))
     for each_meas in measurements:
-        ax.scatter(each_meas[0, :], each_meas[1, :], marker='.', label='sampled points',c='k',s=0.5)  
+        ax.scatter(each_meas[0, :], each_meas[1, :], marker='.', label='sampled points',c='k',s=1)  
     ax.grid()
 
     truth_model.plot_distributions(plt_inds=[0,1],num_std=1,ax=ax,edgecolor='k')
