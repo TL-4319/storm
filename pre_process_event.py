@@ -62,16 +62,18 @@ for tt in meas_time_vec:
     # Find ind of entries within the time window
     sorted_ind_in_timerange = np.nonzero(np.logical_and(elapsed_time_vec_s >= tt,elapsed_time_vec_s < (tt + dt)))
 
-    # Find pixel location within time window, if any
-    if sorted_ind_in_timerange[0].size == 0:
-        pix_loc_in_time_range = np.nan
-        
-    else:   
+    cur_meas_set = []
+
+    # If there is measurement in meas_window
+    if not sorted_ind_in_timerange[0].size == 0:  
         pix_x_in_timerange = sorted_lightning_event_pix_x[sorted_ind_in_timerange[0]]
         pix_y_in_timerange = sorted_lightning_event_pix_y[sorted_ind_in_timerange[0]]
         pix_loc_in_time_range = np.unique(np.vstack((pix_x_in_timerange, pix_y_in_timerange)),axis=1).T
-        
-    meas_table.append(pix_loc_in_time_range)
+        for ii in range(pix_loc_in_time_range.shape[0]):
+            cur_meas_set.append(np.reshape(pix_loc_in_time_range[ii,:],(2,1)))
+    
+    meas_table.append(cur_meas_set)
+
     # Make video
     img = np.zeros(img_size, dtype='uint8')
 
@@ -92,7 +94,3 @@ meas_data = {"TAI93_time_s": meas_time_vec_TAI93, "elapsed_time_s": meas_time_ve
 pickle_file = open(pickle_name,'wb')
 pickle.dump(meas_data, pickle_file)
 pickle_file.close()
-
-    
-
-    
