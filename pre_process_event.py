@@ -13,7 +13,7 @@ import pickle
 ##### Input params here
 # Input orbit granule
 granules = "20231101_151645"
-dt = 1
+dt = 10
 video_size = (300, 300) # Video is resized for clarity. Measurements vectors are kept in 128x128 size
 
 ##### The rest of the scrip
@@ -24,7 +24,7 @@ if not os.path.isdir("dataset/"+granules):
 
 # Pre construct output video name
 vid_out_name = "dataset/" + granules + "/events.avi"
-video = cv.VideoWriter(vid_out_name, cv.VideoWriter_fourcc(*'XVID'), int(5/dt), video_size) # Set to 5 time real time
+video = cv.VideoWriter(vid_out_name, cv.VideoWriter_fourcc(*'XVID'), 1, video_size) # Set to 5 time real time
 
 # Pickle file name
 pickle_name = "dataset/" + granules + "/events.pik"
@@ -78,7 +78,7 @@ for tt in meas_time_vec:
     img = np.zeros(img_size, dtype='uint8')
 
     #print(pix_loc_in_time_range)
-    if not np.any(np.isnan(pix_loc_in_time_range)):
+    if not sorted_ind_in_timerange[0].size == 0:
         for pix in pix_loc_in_time_range:
             img[pix[1],pix[0]] = 255
     img = cv.resize(img, video_size)
