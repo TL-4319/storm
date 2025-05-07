@@ -71,11 +71,11 @@ b_model = [(birth_model, 0.05)] # include probability of birth in tuple
 
 
 
-filt.proc_noise = np.diag([0.01, 0.01, 0.01, 0.01])
-filt.meas_noise = 16 * np.eye(2)
+filt.proc_noise = 0.01 * np.diag([0.01, 0.01, 0.01, 0.01])
+filt.meas_noise = 20 * np.eye(2)
 
 GLMB_RFS_base_args = {
-        "prob_detection": 0.95,
+        "prob_detection": 0.9,
         "prob_survive": 0.99,
         "in_filter": filt,
         "birth_terms": b_model,
@@ -168,7 +168,7 @@ for kk, t in enumerate(time[:-1]):
 
     if print_glmbs:
         print(f"Time Index: {kk} \n")
-        for ii in glmb.GGIWs:
+        for ii in glmb.labels:
             print(ii)
         print("\n\n\n")
 
@@ -191,8 +191,10 @@ for kk, t in enumerate(time[:-1]):
     mix.plot_confidence_extents(h=0.95, plt_inds=[0, 1], ax=ax, edgecolor='r', linewidth=1.5) #(plt_inds=[0,1],ax=ax,edgecolor='r',linewidth=3)
 
     if plot_glmbs:
-        for ii in glmb.GGIWs[-1]:
-            ii.plot_confidence_extents(h=0.95, plt_inds=[0, 1], ax=ax, edgecolor='g', linewidth=1.5) 
+        # for ggiw in glmb.GGIWs[-1]:
+        #     ggiw.plot_confidence_extents(h=0.95, plt_inds=[0, 1], ax=ax, edgecolor='g', linewidth=1.5) 
+
+        glmb.plot_states_labels(ax=ax)
 
     # phd._Mixture.plot_distributions(plt_inds=[0,1],ax=ax,edgecolor='b')
 
@@ -206,7 +208,7 @@ for kk, t in enumerate(time[:-1]):
 
     plt.pause(0.2) 
 
-    #plt.savefig(f"image_set/{kk}.png")
+    # plt.savefig(f"image_set/{kk}.png")
 
 plt.show()
 
