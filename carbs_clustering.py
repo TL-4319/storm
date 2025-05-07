@@ -5,10 +5,10 @@ from scipy.stats.distributions import chi2
 
 class DBSCANParameters:
     def __new__(cls, eps=5.0, min_samples=1, metric="euclidean", metric_params=None,\
-                algorithm="auto", leaf_size=30, p=None, n_jobs=None) -> dict:
+                algorithm="auto", leaf_size=30, ignore_noise=True, p=None, n_jobs=None) -> dict:
         method_params = {"method":"DBSCAN", "eps": eps, "min_samples":min_samples, "metric":metric,\
                          "metric_params":metric_params, "algorithm":algorithm, "leaf_size":leaf_size,\
-                         "p":p,"n_jobs":n_jobs}
+                         "ignore_noise":ignore_noise,"p":p,"n_jobs":n_jobs}
         return method_params
     
 class CARBS_DBSCAN:
@@ -17,6 +17,7 @@ class CARBS_DBSCAN:
                                       metric=params["metric"], metric_params=params["metric_params"],\
                                         algorithm=params["algorithm"], leaf_size=params["leaf_size"],\
                                             p=params["p"], n_jobs=params["n_jobs"])
+        self._ignore_noise = params["ignore_noise"]
 
     def cluster(self, meas_set:list) -> list:
         res = []
@@ -31,12 +32,20 @@ class CARBS_DBSCAN:
         unique_labels = set(labels)
         
         for lab in unique_labels:
-            cur_cluster = []
-            ind = np.where(labels == lab)
-            meas_in_cluster = meas_set_array[np.where(labels == lab),:]
-            for ii in range(meas_in_cluster.shape[1]):
-                cur_cluster.append(meas_in_cluster[:,ii,:].reshape(meas_d,1))
-            res.append(cur_cluster)
+            if lab == -1:
+                # "-1" label indicates points not part of a cluster and need special handling
+                if not self._ignore_noise:
+                    # If we chose not to ignore noisy point, each are assigned to their own cluster
+                    meas_in_cluster = meas_set_array[np.where(labels == lab),:]
+                    for ii in range(meas_in_cluster.shape[1]):
+                        res.append([meas_in_cluster[:,ii,:].reshape(meas_d,1)])
+
+            else:
+                cur_cluster = []
+                meas_in_cluster = meas_set_array[np.where(labels == lab),:]
+                for ii in range(meas_in_cluster.shape[1]):
+                    cur_cluster.append(meas_in_cluster[:,ii,:].reshape(meas_d,1))
+                res.append(cur_cluster)
         return res
 
 class DistPartitionParameters:

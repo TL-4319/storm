@@ -302,7 +302,7 @@ def test_clustering():
 
     tt = 0
 
-    num_agent = 7
+    num_agent = 4
     birth_time = np.array([0, 20])
 
     state_mean = np.array([65.0, 65.0, 0.0, -2.0]).reshape((4,1))
@@ -331,7 +331,7 @@ def test_clustering():
     
     meas_gen = _gen_extented_meas(tt, targets, obs_window, rng)
 
-    clustering_params = carbs_clustering.DBSCANParameters(min_samples=10)
+    clustering_params = carbs_clustering.DBSCANParameters(eps=2, min_samples=5, ignore_noise=True)
     sub_partition_params = carbs_clustering.PoissonSubPartitionParameters()
 
     clustering = carbs_clustering.MeasurementClustering(clustering_params, sub_partition_params)
@@ -350,11 +350,14 @@ def test_clustering():
     ax = _draw_frame(targets, ax)
     #for meas in meas_gen:
     #    ax.scatter(meas[0,:],meas[1,:], 10, "r" ,marker="*")
-    for ii in range(1,len(meas_list)):
+    for ii in range(len(meas_list)):
         cluster = meas_list[ii]
-    #for cluster in meas_list:
         cluster_array = np.array(cluster).reshape(len(cluster), 2).transpose()
-        ax.scatter(cluster_array[0,:],cluster_array[1,:], 10 ,marker="*")
+        ax.scatter(cluster_array[0,:],cluster_array[1,:], 20 ,marker="*")
+        centroid_pos = np.mean(cluster_array, axis=1)
+        #ax.scatter(centroid_pos[0] ,centroid_pos[1], 20 ,marker="o")
+        ax.text(centroid_pos[0] ,centroid_pos[1], str(ii),dict(size=20))
+
 
 
 if __name__ == "__main__":
