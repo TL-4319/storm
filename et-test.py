@@ -305,7 +305,7 @@ def test_GGIW_PHD():
     t0, t1 = 0, 90 + dt # Roughly the view time of a region by ISS of 90 s
 
     # Set up true agent and scenarios
-    num_agent = 2
+    num_agent = 4
     birth_time = np.array([t0, 20])
 
     state_mean = np.array([128.0/2, 130.0, -0.1, -2.0]).reshape((4,1))
@@ -328,13 +328,13 @@ def test_GGIW_PHD():
     filt = GGIW_ExtendedKalmanFilter(forgetting_factor=3, tau=1)
     filt.set_state_model(dyn_obj=gdyn.DoubleIntegrator()) 
     filt.set_measurement_model(meas_mat=np.array([[1, 0, 0, 0], [0, 1, 0, 0]]))
-    filt.proc_noise = np.diag([10, 1, 10, 1])
+    filt.proc_noise = np.diag([10, 10, 10, 10])
     filt.meas_noise = 1 * np.eye(2)
     filt.dt = dt
 
     state_mat_args = (dt,)
 
-    clustering_params = carbs_clustering.DBSCANParameters()
+    clustering_params = carbs_clustering.DBSCANParameters(ignore_noise=False)
     clustering = carbs_clustering.MeasurementClustering(clustering_params)
 
     RFS_base_args = {
@@ -345,7 +345,9 @@ def test_GGIW_PHD():
         "clutter_den": 1e-7,
         "clutter_rate": 1e-7,
     }
-    phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.4,merge_threshold=15,prune_threshold=0.1,**RFS_base_args)
+    phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.4,
+                            merge_threshold=4,prune_threshold=0.001,
+                            **RFS_base_args)
     phd.gating_on = False
 
 
@@ -376,6 +378,7 @@ def test_GGIW_PHD():
         phd.predict(tt, filt_args=(dt,))
 
         phd.correct(timestep=tt, meas_in=meas)
+        print(phd._Mixture)
 
         phd.cleanup()
 
@@ -396,8 +399,11 @@ def test_GGIW_PHD():
         ax.set_aspect(1)
         ax = _draw_frame(true_agents, ax)
         #mix.plot_distributions(plt_inds=[0,1],ax=ax,edgecolor='r',linewidth=3)
-        for each_meas in meas:
-            ax.scatter(each_meas[0],each_meas[1], 10, "r" ,marker="*")
+        for ii in range(len(phd._parted_meas)):
+            cluster = phd._parted_meas[ii]
+            cluster_array = np.array(cluster).reshape(len(cluster), 2).transpose()
+            ax.scatter(cluster_array[0,:],cluster_array[1,:], 20 ,marker="*")
+            
         mix.plot_confidence_extents(h=0.95, plt_inds=[0, 1], ax=ax, edgecolor='r', linewidth=1.5)
         plt.pause(0.2)
 
