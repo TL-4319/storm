@@ -34,7 +34,7 @@ birth_model = GGIWMixture(alphas=[3.0],
             covariances=[np.diag([50**2,50**2,100,100])],
             IWdofs=[10.0],
             IWshapes=[np.array([[500, 0],[0, 500]])],
-            weights=[0.1])
+            weights=[1])
 
 # birth_model.weights = [0.5]
 
@@ -61,8 +61,8 @@ RFS_base_args = {
         "clutter_den": 0.1,
         "clutter_rate": 1,
     }
-phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.5,\
-                        merge_threshold=16, prune_threshold=0.001,**RFS_base_args)
+phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.4,\
+                        merge_threshold=0.1, prune_threshold=0.001,**RFS_base_args)
 phd.gating_on = False
 phd.merge_as_average = True
 
@@ -71,7 +71,7 @@ b_model = [(birth_model, 0.05)] # include probability of birth in tuple
 
 
 
-filt.proc_noise = 0.01 * np.diag([0.01, 0.01, 0.01, 0.01])
+filt.proc_noise = 0.0001 * np.diag([0.01, 0.01, 0.01, 0.01])
 filt.meas_noise = 20 * np.eye(2)
 
 GLMB_RFS_base_args = {
@@ -120,7 +120,7 @@ truth_kinematics = gdyn.DoubleIntegrator()
 
 truth_model = GGIWMixture(alphas=[100.0, 100.0, 100.0], 
             betas=[1.0, 1.0, 1.0],
-            means=[np.array([40, 5, -0.5, 0]).reshape((4, 1)),np.array([10, 5, 0, 1]).reshape((4, 1)),np.array([50, 50, -2, -2]).reshape((4, 1))],
+            means=[np.array([40, 5, -1, 0]).reshape((4, 1)),np.array([10, 5, 0, 1.5]).reshape((4, 1)),np.array([50, 50, -3, 0]).reshape((4, 1))],
             covariances=[np.diag([0,0,0,0]),np.diag([0,0,0,0]),np.diag([0,0,0,0])],
             IWdofs=[30.0, 30.0, 30.0],
             IWshapes=[np.array([[100, 50],[50, 100]]),np.array([[70, 25],[25, 70]]),np.array([[70, 25],[25, 70]])])
@@ -159,9 +159,9 @@ for kk, t in enumerate(time[:-1]):
     # print(phd._Mixture)
 
     phd.cleanup(enable_merge=True)
-
-    extract_kwargs = {"update": True, "calc_states": True}
-    glmb.cleanup()
+    
+    extract_kwargs = {"update": True, "calc_states": True} 
+    glmb.cleanup(extract_kwargs=extract_kwargs)
 
     print_glmbs = False 
     plot_glmbs = True
@@ -186,7 +186,7 @@ for kk, t in enumerate(time[:-1]):
         ax.scatter(each_meas[0, :], each_meas[1, :], marker='.', label='sampled points',c='k',s=1)  
     ax.grid()
 
-    truth_model.plot_distributions(plt_inds=[0,1],num_std=1,ax=ax,color='k')
+    # truth_model.plot_distributions(plt_inds=[0,1],num_std=1,ax=ax,color='k')
     
     mix.plot_confidence_extents(h=0.95, plt_inds=[0, 1], ax=ax, edgecolor='r', linewidth=1.5) #(plt_inds=[0,1],ax=ax,edgecolor='r',linewidth=3)
 
@@ -208,7 +208,7 @@ for kk, t in enumerate(time[:-1]):
 
     plt.pause(0.2) 
 
-    # plt.savefig(f"image_set/{kk}.png")
+    plt.savefig(f"image_set/{kk}.png")
 
 plt.show()
 
