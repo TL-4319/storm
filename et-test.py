@@ -305,7 +305,7 @@ def test_GGIW_PHD():
     t0, t1 = 0, 90 + dt # Roughly the view time of a region by ISS of 90 s
 
     # Set up true agent and scenarios
-    num_agent = 4
+    num_agent = 1
     birth_time = np.array([t0, 20])
 
     state_mean = np.array([128.0/2, 130.0, -0.1, -2.0]).reshape((4,1))
@@ -317,19 +317,20 @@ def test_GGIW_PHD():
     b_model = toyExtendedAgentBirth(num_agent, birth_time, state_mean, state_std, shape_mean, shape_std, rng)
     
     # Set up tracker
-    tracker_birth_model = GGIWMixture(alphas=[15.0], 
-            betas=[1.0],
+    tracker_birth_model = GGIWMixture(alphas=[300.0], 
+            betas=[3.0],
             means=[np.array([128.0/2, 129, 0, 0]).reshape((4, 1))],
-            covariances=[np.diag([64**2,2**2,70,70])],
+            covariances=[np.diag([64**2,2**2,25,25])],
             IWdofs=[100.0],
-            IWshapes=[np.array([[20, 0],[0, 20]])],
+            IWshapes=[np.array([[200, 0],[0, 200]])],
             weights=[0.1])
     
     filt = GGIW_ExtendedKalmanFilter(forgetting_factor=3, tau=1)
     filt.set_state_model(dyn_obj=gdyn.DoubleIntegrator()) 
+    filt.override_state_mat(state_mat=_state_mat_fun(0,dt, "useless"))
     filt.set_measurement_model(meas_mat=np.array([[1, 0, 0, 0], [0, 1, 0, 0]]))
     filt.proc_noise = np.diag([10, 10, 10, 10])
-    filt.meas_noise = 1 * np.eye(2)
+    filt.meas_noise = 10 * np.eye(2)
     filt.dt = dt
 
     state_mat_args = (dt,)
@@ -371,23 +372,21 @@ def test_GGIW_PHD():
         
         # Generate measurements
         meas = _gen_extented_meas(tt, agent_in_FOV, obs_window, rng)
-        print(meas)
-        meas_array = np.array(meas).reshape(2,len(meas))
           
         ## Run filter
         phd.predict(tt, filt_args=(dt,))
+        print("Predict")
+        print(phd._Mixture)
 
         phd.correct(timestep=tt, meas_in=meas)
+        print("Correct")
         print(phd._Mixture)
 
         phd.cleanup()
-
-        mix = phd.extract_mixture()
-
-        #print("Extracted mix")
-        #print(mix)
+        print("Clean up")
         print(phd._Mixture)
 
+        mix = phd.extract_mixture()
 
         ## For visualization
         ax.clear()
