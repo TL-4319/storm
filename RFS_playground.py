@@ -162,7 +162,7 @@ for kk, t in enumerate(time[:-1]):
     for ii in range(len(truth_model._distributions)):
         temp = (truth_model._distributions[ii].sample_measurements(xy_inds=[0,1],random_extent=False)).round()
 
-        #temp = np.unique(temp, axis=1)
+        temp = np.unique(temp, axis=1)
         # Cull any measurment outside of FOV
         out_FOV = np.where(np.logical_or(temp[0,:] < -40, temp[0,:] > 50))
         out_FOV = out_FOV[0]

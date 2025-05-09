@@ -281,7 +281,7 @@ def _gen_extented_meas(tt, agents_in_FOV, obs_window, rng:np.random.Generator):
         num_meas = rng.poisson(agent[0])
         agent_pos = np.array([agent[1][0,0], agent[1][1,0]])
         shape_mat = _params2shapemat(agent[2][2,0], agent[2][4,0], agent[2][0,0])
-        m = rng.multivariate_normal(agent_pos, 0.25 * shape_mat,num_meas).reshape(num_meas,2).transpose().round() # Detection are rounded to int to simulate pixel index
+        m = rng.multivariate_normal(agent_pos, 0.25 * shape_mat,num_meas).reshape(num_meas,2).transpose()#.round() # Detection are rounded to int to simulate pixel index
         m = np.unique(m,axis=1) # Cull repeated measurement 
         # Cull any measurment outside of FOV
         out_FOV = np.where(np.logical_or(m[1,:] < obs_window[1,0], m[1,:] > obs_window[1,1]))
@@ -305,32 +305,32 @@ def test_GGIW_PHD():
     t0, t1 = 0, 90 + dt # Roughly the view time of a region by ISS of 90 s
 
     # Set up true agent and scenarios
-    num_agent = 1
+    num_agent = 3
     birth_time = np.array([t0, 20])
 
     state_mean = np.array([128.0/2, 130.0, -0.1, -2.0]).reshape((4,1))
     state_std = np.array([25.0, 1.0, 0.5, 0.1]).reshape((4,1))
 
-    shape_mean = np.array([0, 0, (12 * REAL2PIX), 0, (12 * REAL2PIX), 0]).reshape((6,1)) # Assume average storm diameter of 24km with some variation in shape
-    shape_std = np.array([0,1, 10 * REAL2PIX, 0, 10 * REAL2PIX,0]).reshape((6,1))
+    shape_mean = np.array([0, 0, (15 * REAL2PIX), 0, (15 * REAL2PIX), 0]).reshape((6,1)) # Assume average storm diameter of 24km with some variation in shape
+    shape_std = np.array([0,1, 5 * REAL2PIX, 0, 5 * REAL2PIX,0]).reshape((6,1))
 
     b_model = toyExtendedAgentBirth(num_agent, birth_time, state_mean, state_std, shape_mean, shape_std, rng)
     
     # Set up tracker
-    tracker_birth_model = GGIWMixture(alphas=[300.0], 
-            betas=[3.0],
-            means=[np.array([128.0/2, 129, 0, 0]).reshape((4, 1))],
-            covariances=[np.diag([64**2,2**2,25,25])],
-            IWdofs=[100.0],
+    tracker_birth_model = GGIWMixture(alphas=[20.0], 
+            betas=[1.0],
+            means=[np.array([128.0/2, 120, 0, 0]).reshape((4, 1))],
+            covariances=[np.diag([64**2,5**2,1,1])],
+            IWdofs=[10.0],
             IWshapes=[np.array([[200, 0],[0, 200]])],
             weights=[0.1])
     
-    filt = GGIW_ExtendedKalmanFilter(forgetting_factor=3, tau=1)
+    filt = GGIW_ExtendedKalmanFilter(forgetting_factor=2, tau=1, cont_cov=False)
     filt.set_state_model(dyn_obj=gdyn.DoubleIntegrator()) 
     filt.override_state_mat(state_mat=_state_mat_fun(0,dt, "useless"))
     filt.set_measurement_model(meas_mat=np.array([[1, 0, 0, 0], [0, 1, 0, 0]]))
-    filt.proc_noise = np.diag([10, 10, 10, 10])
-    filt.meas_noise = 10 * np.eye(2)
+    filt.proc_noise = np.diag([1, 1, 1, 1])
+    filt.meas_noise = 2 * np.eye(2)
     filt.dt = dt
 
     state_mat_args = (dt,)
@@ -339,14 +339,14 @@ def test_GGIW_PHD():
     clustering = carbs_clustering.MeasurementClustering(clustering_params)
 
     RFS_base_args = {
-        "prob_detection": 0.99,
-        "prob_survive": 0.98,
+        "prob_detection": 0.9,
+        "prob_survive": 0.99,
         "in_filter": filt,
         "birth_terms": tracker_birth_model,
-        "clutter_den": 1e-7,
-        "clutter_rate": 1e-7,
+        "clutter_den": 0.1,
+        "clutter_rate": 1,
     }
-    phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.4,
+    phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.6,
                             merge_threshold=4,prune_threshold=0.001,
                             **RFS_base_args)
     phd.gating_on = False
@@ -379,10 +379,12 @@ def test_GGIW_PHD():
         print(phd._Mixture)
 
         phd.correct(timestep=tt, meas_in=meas)
+        print("num partition")
+        print(len(phd._parted_meas))
         print("Correct")
         print(phd._Mixture)
 
-        phd.cleanup()
+        phd.cleanup(enable_merge=True)
         print("Clean up")
         print(phd._Mixture)
 
@@ -390,7 +392,9 @@ def test_GGIW_PHD():
 
         ## For visualization
         ax.clear()
-        title_str = "t = " + str(tt) + " s. Num in FOV = " + str(str(len(agent_in_FOV)))
+        title_str = "t = " + str(tt) + " s. Num in FOV = " \
+            + str(str(len(agent_in_FOV))) + ".extracted " + str(len(mix))\
+            
         ax.set_title(title_str)
         ax.plot([0],[0])
         ax.set_xlim(tuple(obs_window[0,:]))
