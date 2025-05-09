@@ -30,11 +30,11 @@ t0, t1 = 0, 25 + dt
 
 birth_model = GGIWMixture(alphas=[1.0], 
             betas=[1],
-            means=[np.array([15, 15, 0, 0]).reshape((4, 1))],
+            means=[np.array([-60, 30, 0, 0]).reshape((4, 1))],
             covariances=[np.diag([10**2,10**2,1,1])],
             IWdofs=[10.0],
-            IWshapes=[np.array([[500, 0],[0, 500]])],
-            weights=[1])
+            IWshapes=[np.array([[100, 0],[0, 100]])],
+            weights=[0.1])
 
 # birth_model.weights = [0.5]
 
@@ -42,7 +42,7 @@ birth_model = GGIWMixture(alphas=[1.0],
 w_e = 2
 eta_k = w_e / (w_e - 1) # forgetting factor
 
-filt = GGIW_ExtendedKalmanFilter(forgetting_factor=eta_k,tau=1, cont_cov=True)
+filt = GGIW_ExtendedKalmanFilter(forgetting_factor=eta_k,tau=1, cont_cov=False)
 filt.set_state_model(dyn_obj=gdyn.DoubleIntegrator()) 
 filt.set_measurement_model(meas_mat=np.array([[1, 0, 0, 0], [0, 1, 0, 0]]))
 
@@ -61,8 +61,8 @@ RFS_base_args = {
         "clutter_den": 0.1,
         "clutter_rate": 1,
     }
-phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.4,\
-                        merge_threshold=1, prune_threshold=0.001,**RFS_base_args)
+phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.8,\
+                        merge_threshold=4, prune_threshold=0.001,**RFS_base_args)
 phd.gating_on = False 
 
 b_model = [(birth_model, 0.01)] # include probability of birth in tuple
@@ -90,7 +90,7 @@ GLMB_args = {
         "max_hyps": 1000,
     }
 
-glmb = GGIW_RFS.GGIW_JGLMB(clustering_obj=clustering, **GLMB_args, **GLMB_RFS_base_args)
+glmb = GGIW_RFS.GGIW_GLMB(clustering_obj=clustering, **GLMB_args, **GLMB_RFS_base_args)
 
 # phd.predict(timestep=1, filt_args=(dt,))
 
@@ -117,12 +117,19 @@ glmb = GGIW_RFS.GGIW_JGLMB(clustering_obj=clustering, **GLMB_args, **GLMB_RFS_ba
 
 truth_kinematics = gdyn.DoubleIntegrator()
 
-truth_model = GGIWMixture(alphas=[200.0, 200.0, 200.0], 
-            betas=[1.0, 1.0, 1.0],
-            means=[np.array([-40, 30, 3, 0]).reshape((4, 1)),np.array([40, -5, -3, 1]).reshape((4, 1)),np.array([40, 65, -3, -1]).reshape((4, 1))],
-            covariances=[np.diag([0,0,0,0]),np.diag([0,0,0,0]),np.diag([0,0,0,0])],
-            IWdofs=[60.0, 30.0, 30.0],
-            IWshapes=[np.array([[200, 0],[0, 200]]),np.array([[70, 25],[25, 70]]),np.array([[70, 25],[25, 70]])])
+#truth_model = GGIWMixture(alphas=[200.0, 200.0, 200.0], 
+#            betas=[1.0, 1.0, 1.0],
+#            means=[np.array([-40, 30, 3, 0]).reshape((4, 1)),np.array([40, -5, -3, 1]).reshape((4, 1)),np.array([40, 65, -3, -1]).reshape((4, 1))],
+#            covariances=[np.diag([0,0,0,0]),np.diag([0,0,0,0]),np.diag([0,0,0,0])],
+#            IWdofs=[60.0, 30.0, 30.0],
+#            IWshapes=[np.array([[200, 0],[0, 200]]),np.array([[70, 25],[25, 70]]),np.array([[70, 25],[25, 70]])])
+
+truth_model = GGIWMixture(alphas=[200.0, 200.0], 
+            betas=[1.0, 1.0],
+            means=[np.array([-60, 30, 4, 1]).reshape((4, 1)), np.array([-40, 20, 3, -1]).reshape((4, 1))],
+            covariances=[np.diag([0,0,0,0]), np.diag([0,0,0,0])],
+            IWdofs=[60.0, 60],
+            IWshapes=[np.array([[70, 0],[0, 200]]), np.array([[200, 0],[0, 270]])],)
 
 time = np.arange(t0, t1, dt)
 
@@ -134,6 +141,8 @@ fig.set_figwidth(15)
 
 for kk, t in enumerate(time[:-1]):
     phd.predict(t, filt_args=(dt,))
+    print("Predict")
+    print(phd._Mixture)
 
     glmb.predict(t, filt_args=(dt,))
 
@@ -151,7 +160,14 @@ for kk, t in enumerate(time[:-1]):
     
     measurements = []
     for ii in range(len(truth_model._distributions)):
-        temp = (truth_model._distributions[ii].sample_measurements(xy_inds=[0,1],random_extent=False))
+        temp = (truth_model._distributions[ii].sample_measurements(xy_inds=[0,1],random_extent=False)).round()
+
+        #temp = np.unique(temp, axis=1)
+        # Cull any measurment outside of FOV
+        out_FOV = np.where(np.logical_or(temp[0,:] < -40, temp[0,:] > 50))
+        out_FOV = out_FOV[0]
+        temp = np.delete(temp, out_FOV, 1)
+
         for ii in range(temp.shape[1]):
             measurements.append(temp[:,ii].reshape((2,1))) 
 
@@ -163,12 +179,18 @@ for kk, t in enumerate(time[:-1]):
     #print(measurements)
 
     phd.correct(timestep=t,meas_in=measurements)
+    print("Num partition")
+    print(len(phd._parted_meas))
+    print("COrrect")
+    print(phd._Mixture)
 
     glmb.correct(t, meas_in=measurements)
 
     # print(phd._Mixture)
 
     phd.cleanup(enable_merge=True)
+    print("Cleanup")
+    print(phd._Mixture)
     
     extract_kwargs = {"update": True, "calc_states": True} 
     glmb.cleanup(extract_kwargs=extract_kwargs) 
@@ -223,8 +245,8 @@ for kk, t in enumerate(time[:-1]):
 
     plt.pause(0.2) 
 
-    plt.savefig(f"image_set/{kk}.png")
-
+    #plt.savefig(f"image_set/{kk}.png")
+print("done")
 plt.show()
 
 
