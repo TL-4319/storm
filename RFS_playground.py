@@ -208,7 +208,7 @@ for kk, t in enumerate(time[:-1]):
 
     plt.pause(0.2) 
 
-    plt.savefig(f"image_set/{kk}.png")
+    #plt.savefig(f"image_set/{kk}.png")
 
 plt.show()
 

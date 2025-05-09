@@ -317,20 +317,20 @@ def test_GGIW_PHD():
     b_model = toyExtendedAgentBirth(num_agent, birth_time, state_mean, state_std, shape_mean, shape_std, rng)
     
     # Set up tracker
-    tracker_birth_model = GGIWMixture(alphas=[300.0], 
-            betas=[3.0],
+    tracker_birth_model = GGIWMixture(alphas=[1.0], 
+            betas=[1.0],
             means=[np.array([128.0/2, 129, 0, 0]).reshape((4, 1))],
-            covariances=[np.diag([64**2,2**2,25,25])],
-            IWdofs=[100.0],
+            covariances=[np.diag([64**2,10**2,1,1])],
+            IWdofs=[10.0],
             IWshapes=[np.array([[200, 0],[0, 200]])],
-            weights=[0.1])
+            weights=[1])
     
-    filt = GGIW_ExtendedKalmanFilter(forgetting_factor=3, tau=1)
+    filt = GGIW_ExtendedKalmanFilter(forgetting_factor=2, tau=1)
     filt.set_state_model(dyn_obj=gdyn.DoubleIntegrator()) 
     filt.override_state_mat(state_mat=_state_mat_fun(0,dt, "useless"))
     filt.set_measurement_model(meas_mat=np.array([[1, 0, 0, 0], [0, 1, 0, 0]]))
-    filt.proc_noise = np.diag([10, 10, 10, 10])
-    filt.meas_noise = 10 * np.eye(2)
+    filt.proc_noise = np.diag([1, 1, 1, 1])
+    filt.meas_noise = 2 * np.eye(2)
     filt.dt = dt
 
     state_mat_args = (dt,)
@@ -339,12 +339,12 @@ def test_GGIW_PHD():
     clustering = carbs_clustering.MeasurementClustering(clustering_params)
 
     RFS_base_args = {
-        "prob_detection": 0.99,
-        "prob_survive": 0.98,
+        "prob_detection": 0.9,
+        "prob_survive": 0.99,
         "in_filter": filt,
         "birth_terms": tracker_birth_model,
-        "clutter_den": 1e-7,
-        "clutter_rate": 1e-7,
+        "clutter_den": 0.1,
+        "clutter_rate": 1,
     }
     phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.4,
                             merge_threshold=4,prune_threshold=0.001,
