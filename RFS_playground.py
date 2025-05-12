@@ -19,7 +19,7 @@ clustering_params = carbs_clustering.DBSCANParameters(min_samples=10, eps=5)
 clustering = carbs_clustering.MeasurementClustering(clustering_params)
 
 dt = 0.5
-t0, t1 = 0, 25 + dt  
+t0, t1 = 0, 14.5 + dt  
 
 # birth_model = GGIWMixture(alphas=[5.0, 5.0], 
 #             betas=[1.0, 1.0],
@@ -28,13 +28,13 @@ t0, t1 = 0, 25 + dt
 #             IWdofs=[80.0, 80.0],
 #             IWshapes=[np.array([[70, 25],[25, 70]]),np.array([[100, 25],[25, 100]])])
 
-birth_model = GGIWMixture(alphas=[1.0], 
+birth_model = GGIWMixture(alphas=[10.0], 
             betas=[1],
             means=[np.array([-60, 30, 0, 0]).reshape((4, 1))],
-            covariances=[np.diag([10**2,10**2,1,1])],
+            covariances=[np.diag([10**2,10**2,5,5])],
             IWdofs=[10.0],
             IWshapes=[np.array([[100, 0],[0, 100]])],
-            weights=[0.1])
+            weights=[1])
 
 # birth_model.weights = [0.5]
 
@@ -61,7 +61,7 @@ RFS_base_args = {
         "clutter_den": 0.1,
         "clutter_rate": 1,
     }
-phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.8,\
+phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.5,\
                         merge_threshold=4, prune_threshold=0.001,**RFS_base_args)
 phd.gating_on = False 
 
@@ -70,7 +70,7 @@ b_model = [(birth_model, 0.01)] # include probability of birth in tuple
 
 
 
-filt.proc_noise = 0.1 * np.diag([1, 1, 0.01, 0.01])
+filt.proc_noise =  np.diag([0.1, 0.1, 0.01, 0.01])
 filt.meas_noise = 2 * np.eye(2)
 
 GLMB_RFS_base_args = {
@@ -126,9 +126,9 @@ truth_kinematics = gdyn.DoubleIntegrator()
 
 truth_model = GGIWMixture(alphas=[200.0, 200.0], 
             betas=[1.0, 1.0],
-            means=[np.array([-60, 30, 4, 1]).reshape((4, 1)), np.array([-40, 20, 3, -1]).reshape((4, 1))],
+            means=[np.array([-60, 30, 8, 1]).reshape((4, 1)), np.array([-40, 20, 6, -1]).reshape((4, 1))],
             covariances=[np.diag([0,0,0,0]), np.diag([0,0,0,0])],
-            IWdofs=[60.0, 60],
+            IWdofs=[100.0, 100],
             IWshapes=[np.array([[70, 0],[0, 200]]), np.array([[200, 0],[0, 270]])],)
 
 time = np.arange(t0, t1, dt)
@@ -149,20 +149,22 @@ for kk, t in enumerate(time[:-1]):
     new_mean = truth_model.means
     new_dofs = truth_model.IWdofs
     new_alphas = truth_model.alphas
+    new_shapes = truth_model.IWshapes
     for ii in range(len(truth_model._distributions)):
         new_mean[ii]  = truth_kinematics.propagate_state(t,truth_model._distributions[ii].mean,state_args=(dt,)).flatten()
         if new_dofs[ii] > 10:
             new_dofs[ii] = 1 * new_dofs[ii] 
-        new_alphas[ii] = 0.98 * new_alphas[ii] 
+        new_alphas[ii] = 1 * new_alphas[ii] 
+        new_shapes[ii] = new_shapes[ii] + 40 * np.eye(2)
     truth_model.means = new_mean
     truth_model.IWdofs = new_dofs
     truth_model.alphas = new_alphas
     
     measurements = []
     for ii in range(len(truth_model._distributions)):
-        temp = (truth_model._distributions[ii].sample_measurements(xy_inds=[0,1],random_extent=False)).round()
+        temp = (truth_model._distributions[ii].sample_measurements(xy_inds=[0,1],random_extent=False)) #.round()
 
-        temp = np.unique(temp, axis=1)
+        # temp = np.unique(temp, axis=1)
         # Cull any measurment outside of FOV
         out_FOV = np.where(np.logical_or(temp[0,:] < -40, temp[0,:] > 50))
         out_FOV = out_FOV[0]
@@ -181,7 +183,7 @@ for kk, t in enumerate(time[:-1]):
     phd.correct(timestep=t,meas_in=measurements)
     print("Num partition")
     print(len(phd._parted_meas))
-    print("COrrect")
+    print("Correct")
     print(phd._Mixture)
 
     glmb.correct(t, meas_in=measurements)
@@ -230,7 +232,7 @@ for kk, t in enumerate(time[:-1]):
     
     mix.plot_confidence_extents(h=0.95, plt_inds=[0, 1], ax=ax1, edgecolor='r', linewidth=1.5) #(plt_inds=[0,1],ax=ax,edgecolor='r',linewidth=3)
 
-    glmb.plot_states_labels(ax=ax2, linewidth=1.5, ttl="")
+    glmb.plot_states_labels(ax=ax2, plt_inds=[0, 1], extent_plot_step=4, marker = "none")
 
     # phd._Mixture.plot_distributions(plt_inds=[0,1],ax=ax1,edgecolor='b')
 
