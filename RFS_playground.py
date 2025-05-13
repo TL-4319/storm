@@ -19,14 +19,7 @@ clustering_params = carbs_clustering.DBSCANParameters(min_samples=10, eps=5)
 clustering = carbs_clustering.MeasurementClustering(clustering_params)
 
 dt = 0.5
-t0, t1 = 0, 14.5 + dt  
-
-# birth_model = GGIWMixture(alphas=[5.0, 5.0], 
-#             betas=[1.0, 1.0],
-#             means=[np.array([50, 50, -1, 0]).reshape((4, 1)),np.array([15, 15, 0, 2]).reshape((4, 1))],
-#             covariances=[np.diag([100,100,10,10]),np.diag([100,100,10,10])],
-#             IWdofs=[80.0, 80.0],
-#             IWshapes=[np.array([[70, 25],[25, 70]]),np.array([[100, 25],[25, 100]])])
+t0, t1 = 0, 14.5 + dt 
 
 birth_model = GGIWMixture(alphas=[10.0], 
             betas=[1],
@@ -47,7 +40,7 @@ filt.set_state_model(dyn_obj=gdyn.DoubleIntegrator())
 filt.set_measurement_model(meas_mat=np.array([[1, 0, 0, 0], [0, 1, 0, 0]]))
 
 filt.proc_noise = np.diag([0.01, 0.01, 0.01, 0.01])
-filt.meas_noise = 2 * np.eye(2)                          # Note: Higher meas noise keeps singularities from happening during the inverse wishart correction step
+filt.meas_noise = 2 * np.eye(2) 
 
 filt.dt = dt
 
@@ -65,10 +58,7 @@ phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.5,\
                         merge_threshold=4, prune_threshold=0.001,**RFS_base_args)
 phd.gating_on = False 
 
-b_model = [(birth_model, 0.01)] # include probability of birth in tuple
-
-
-
+b_model = [(birth_model, 0.01)]
 
 filt.proc_noise =  np.diag([0.1, 0.1, 0.01, 0.01])
 filt.meas_noise = 2 * np.eye(2)
@@ -90,76 +80,31 @@ GLMB_args = {
         "max_hyps": 1000,
     }
 
-glmb = GGIW_RFS.GGIW_GLMB(clustering_obj=clustering, **GLMB_args, **GLMB_RFS_base_args)
+glmb = GGIW_RFS.GGIW_GLMB(clustering_obj=clustering, **GLMB_args, **GLMB_RFS_base_args) 
 
-# phd.predict(timestep=1, filt_args=(dt,))
-
-# # print(phd._Mixture)
-# # phd._Mixture.plot_distributions(plt_inds = [0,2])
-# # plt.show()
-
-
-# phd.predict(timestep=1+dt, filt_args=(dt,)) 
-# phd._Mixture.plot_distributions(plt_inds = [0,1])
-# plt.show()
-
-# print(phd._Mixture)
-
-# # print(phd._Mixture.alphas)
-# # print(phd._Mixture.betas)
-# # print(phd._Mixture.means)
-# # print(phd._Mixture.covariances)
-# # print(phd._Mixture.IWdofs)
-# # print(phd._Mixture.IWshapes)
-# # print(phd._Mixture.weights)
-
-# print(gdyn.DoubleIntegrator().state_names)
-
-truth_kinematics = gdyn.DoubleIntegrator()
-
-#truth_model = GGIWMixture(alphas=[200.0, 200.0, 200.0], 
-#            betas=[1.0, 1.0, 1.0],
-#            means=[np.array([-40, 30, 3, 0]).reshape((4, 1)),np.array([40, -5, -3, 1]).reshape((4, 1)),np.array([40, 65, -3, -1]).reshape((4, 1))],
-#            covariances=[np.diag([0,0,0,0]),np.diag([0,0,0,0]),np.diag([0,0,0,0])],
-#            IWdofs=[60.0, 30.0, 30.0],
-#            IWshapes=[np.array([[200, 0],[0, 200]]),np.array([[70, 25],[25, 70]]),np.array([[70, 25],[25, 70]])])
+truth_kinematics = gdyn.DoubleIntegrator() 
 
 truth_model = GGIWMixture(alphas=[200.0, 200.0], 
             betas=[1.0, 1.0],
             means=[np.array([-60, 30, 8, 1]).reshape((4, 1)), np.array([-40, 20, 6, -1]).reshape((4, 1))],
             covariances=[np.diag([0,0,0,0]), np.diag([0,0,0,0])],
             IWdofs=[100.0, 100],
-            IWshapes=[np.array([[70, 0],[0, 200]]), np.array([[200, 0],[0, 270]])],)
+            IWshapes=[np.array([[70, 0],[0, 200]]), np.array([[200, 0],[0, 270]])],
+            weights=[1,1])
 
-time = np.arange(t0, t1, dt)
+truth_model_list = [[truth_model[0]],[truth_model[1]]] 
 
-# print(filt._dyn_obj)
+time = np.arange(t0, t1, dt) 
 
 fig, (ax1,ax2) = plt.subplots(1,2)
 fig.set_figheight(9)
 fig.set_figwidth(15)
 
 for kk, t in enumerate(time[:-1]):
-    phd.predict(t, filt_args=(dt,))
-    print("Predict")
-    print(phd._Mixture)
+    phd.predict(t, filt_args=(dt,)) 
 
     glmb.predict(t, filt_args=(dt,))
 
-    new_mean = truth_model.means
-    new_dofs = truth_model.IWdofs
-    new_alphas = truth_model.alphas
-    new_shapes = truth_model.IWshapes
-    for ii in range(len(truth_model._distributions)):
-        new_mean[ii]  = truth_kinematics.propagate_state(t,truth_model._distributions[ii].mean,state_args=(dt,)).flatten()
-        if new_dofs[ii] > 10:
-            new_dofs[ii] = 1 * new_dofs[ii] 
-        new_alphas[ii] = 1 * new_alphas[ii] 
-        new_shapes[ii] = new_shapes[ii] + 40 * np.eye(2)
-    truth_model.means = new_mean
-    truth_model.IWdofs = new_dofs
-    truth_model.alphas = new_alphas
-    
     measurements = []
     for ii in range(len(truth_model._distributions)):
         temp = (truth_model._distributions[ii].sample_measurements(xy_inds=[0,1],random_extent=False)) #.round()
@@ -176,39 +121,16 @@ for kk, t in enumerate(time[:-1]):
     min_samples, max_samples = 10, 50
     n_samples = np.random.randint(min_samples, max_samples + 1)
     for _ in range(n_samples):
-        measurements.append(np.random.uniform([-40, -20], [60, 80], 2).reshape(2, 1))
-    
-    #print(measurements)
+        measurements.append(np.random.uniform([-40, -20], [60, 80], 2).reshape(2, 1)) 
 
-    phd.correct(timestep=t,meas_in=measurements)
-    print("Num partition")
-    print(len(phd._parted_meas))
-    print("Correct")
-    print(phd._Mixture)
+    phd.correct(timestep=t,meas_in=measurements) 
 
     glmb.correct(t, meas_in=measurements)
 
-    # print(phd._Mixture)
+    phd.cleanup(enable_merge=True) 
 
-    phd.cleanup(enable_merge=True)
-    print("Cleanup")
-    print(phd._Mixture)
-    
     extract_kwargs = {"update": True, "calc_states": True} 
     glmb.cleanup(extract_kwargs=extract_kwargs) 
-
-    print_glmbs = False 
-    plot_glmbs = True
-
-    if print_glmbs:
-        print(f"Time Index: {kk} \n")
-        for ii in glmb.labels:
-            print(ii)
-        print("\n\n\n")
-
-
-    # print("Cleaned up Mixture: \n\n")
-    # print(phd._Mixture)
 
     mix = phd.extract_mixture()
 
@@ -227,25 +149,34 @@ for kk, t in enumerate(time[:-1]):
     for each_meas in measurements:
         ax2.scatter(each_meas[0, :], each_meas[1, :], marker='.', label='sampled points',c='k',s=1.5)  
     ax2.grid()
-
-    # truth_model.plot_distributions(plt_inds=[0,1],num_std=1,ax=ax,color='k')
+    
     
     mix.plot_confidence_extents(h=0.95, plt_inds=[0, 1], ax=ax1, edgecolor='r', linewidth=1.5) #(plt_inds=[0,1],ax=ax,edgecolor='r',linewidth=3)
 
-    glmb.plot_states_labels(ax=ax2, plt_inds=[0, 1], extent_plot_step=4, marker = "none")
-
-    # phd._Mixture.plot_distributions(plt_inds=[0,1],ax=ax1,edgecolor='b')
-
-    # print("Extracted Mixture: \n\n")
-    # print(mix)
-
-    # print("Sum of weights: \n")
-    # print(np.sum(phd._Mixture.weights))
+    glmb.plot_states_labels(ax=ax2, plt_inds=[0, 1], extent_plot_step=4, marker = "none", true_GGIWs=truth_model_list)
 
     ax1.set_aspect(1)
     ax2.set_aspect(1)
 
     plt.pause(0.2) 
+
+    # Propagate truth forward and append to truth list
+    new_mean = truth_model.means
+    new_dofs = truth_model.IWdofs
+    new_alphas = truth_model.alphas
+    new_shapes = truth_model.IWshapes
+    for ii in range(len(truth_model._distributions)):
+        new_mean[ii]  = truth_kinematics.propagate_state(t,truth_model._distributions[ii].mean,state_args=(dt,)) 
+        if new_dofs[ii] > 10:
+            new_dofs[ii] = 1 * new_dofs[ii] 
+        new_alphas[ii] = 1 * new_alphas[ii] 
+        new_shapes[ii] = new_shapes[ii] + 40 * np.eye(2)
+    truth_model.means = new_mean
+    truth_model.IWdofs = new_dofs
+    truth_model.alphas = new_alphas 
+
+    truth_model_list[0].append(deepcopy(truth_model[0]))
+    truth_model_list[1].append(deepcopy(truth_model[1])) 
 
     #plt.savefig(f"image_set/{kk}.png")
 print("done")
