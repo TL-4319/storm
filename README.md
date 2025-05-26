@@ -54,8 +54,39 @@ The measurement set ```Z``` is generated with the following scheme:
 - Check if target is in FOV. FOV is true when any extent of the target is within the FOV
 - Randomly set if target generate meas or not in this timestep. Probability defined by ```lightning_prob```
 - If set to generate measurement, sample for number of measurement ```|Z|``` from ```Pois(|Z|,rate)```
-- Sample ```|Z|``` number measurements ```Z = {m1, m2, ...} ``` with spatial distribution following ```Norm(m, pos, 0.25 * shape_mat)```. Note, the shape is tightened to shrink the measurement span similar to method used [here](/ref/GGIW/Tracking_of_Extended_Objects_and_Group_Targets_Using_Random_Matrices.pdf)
+- Sample ```|Z|``` number measurements ```Z = {m1, m2, ...} ``` with spatial distribution follow ing ```Norm(m, pos, 0.25 * shape_mat)```. Note, the shape is tightened to shrink the measurement span similar to method used [here](/ref/GGIW/Tracking_of_Extended_Objects_and_Group_Targets_Using_Random_Matrices.pdf)
 - Cull any measurement not in FOV
 
 The returned measurement set is returned as ```2 x |Z| numpy array``` where ```meas_in[0,:]``` are the detections X positions and ```meas_in[1,:]``` are the detection Y positions.
+
+## Implementation Details
+### Clustering
+The measurement clustering step is implemented as a wrapper in ```carbs_clustering.py``` to provide a common interface separately from the underlying clustering algorithm used.
+
+As the end-user, the ```MeasurementClustering``` class is used. This class includes
+
+-   ```__init___```: which can take in a ```dict``` that include the desired method along with its corresponding settings. 
+-   ```cluster```: which takes in a list of [D x 1] numpy arrays. It returns a list of clusters where each cluster is a list of partition [D x 1] numpy arrays.
+
+### Example usage
+Currently, only DBSCAN clustering is implemented. To construct a clusterer object, the methods and the appropriate settings must be set. This can be done by initializing an appropriate ```Parameters``` object defined in ```carbs_clustering.py```. For example, for DBSCAN, create a parameter object dict by
+
+```
+cluster_params = carbs_clustering.DBSCANParameters()
+```
+
+Here ```DBSCANParameters``` can takes in optional parameters to override defaults settings. We are using scikit's DBSCAN implementation so a list of settings can be found [here](https://scikit-learn.org/stable/modules/generated/sklearn.cluster.DBSCAN.html). In addition, DBSCAN return all noisy points as the same group with label "-1". This behavior is not applicable to GGIW-RFS filter so a flag ```ignore_noise``` was added to either remove all those points or retain them but have them in an idividual group.
+
+Once a ```Parameters``` object is created, it can be passed while constructing ```MeasurementClustering``` to set the clustering code with the appropriate method and setting. Once constructed, a measurement set can be clustered by
+
+```
+clusterer = carbs_clustering.MeasurementClustering(clustering_params)
+
+clustered_list = clusterer(original_list)
+```
+Example of full usage can be found in ```test_clustering.py```
+
+
+
+
 
