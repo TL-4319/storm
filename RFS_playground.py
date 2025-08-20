@@ -6,6 +6,7 @@ import matplotlib.animation as animation
 from copy import deepcopy
 
 import time
+import tracemalloc   # For memory usage tracking
 
 import scipy.stats as stats
 import gncpy.dynamics.basic as gdyn
@@ -25,9 +26,9 @@ def truth_n_measurements(time, truth_model, truth_kinematics, FOV_lim=[0, 129], 
     for kk, t in enumerate(time):
         temp_measurements = []
         for ii in range(len(truth_model._distributions)):
-            temp = (truth_model._distributions[ii].sample_measurements(xy_inds=[0,1],random_extent=False)) #.round()
+            temp = (truth_model._distributions[ii].sample_measurements(xy_inds=[0,1],random_extent=False)).round()
 
-            # temp = np.unique(temp, axis=1)
+            temp = np.unique(temp, axis=1)
             # Cull any measurment outside of FOV
             out_FOV = np.where(np.logical_or(temp[0,:] < FOV_lim[0], temp[0,:] > FOV_lim[1]))
             out_FOV = out_FOV[0]
@@ -71,7 +72,7 @@ def initialize_filters(dt):
     birth_model = GGIWMixture(alphas=[100.0], 
                 betas=[1],
                 means=[np.array([20, 50, 0, 0]).reshape((4, 1))],
-                covariances=[np.diag([5**2,5**2,5,5])],
+                covariances=[np.diag([3**2,3**2,5,5])],
                 IWdofs=[10.0],
                 IWshapes=[np.array([[200, 0],[0, 200]])],
                 weights=[1])
@@ -92,7 +93,7 @@ def initialize_filters(dt):
     state_mat_args = (dt,)
 
     RFS_base_args = {
-            "prob_detection": 0.9,
+            "prob_detection": 0.7,
             "prob_survive": 0.99,
             "in_filter": filt,
             "birth_terms": birth_model,
@@ -100,7 +101,7 @@ def initialize_filters(dt):
             "clutter_rate": 1,
         }
     phd = GGIW_RFS.GGIW_PHD(clustering_obj=clustering,extract_threshold=0.5,\
-                            merge_threshold=4, prune_threshold=0.001,**RFS_base_args)
+                            merge_threshold=4, prune_threshold=0.001, **RFS_base_args)
     phd.gating_on = False 
     
     cphd = GGIW_RFS.GGIW_CPHD(clustering_obj=clustering,extract_threshold=0.5,\
@@ -110,8 +111,8 @@ def initialize_filters(dt):
     b_model = [(birth_model, 0.001)]
 
     GLMB_RFS_base_args = {
-            "prob_detection": 0.9,
-            "prob_survive": 0.99,
+            "prob_detection": 0.7,
+            "prob_survive": 0.9,
             "in_filter": filt,
             "birth_terms": b_model,
             "clutter_den": 0.1,
@@ -149,7 +150,9 @@ def test_phds(
 
     start = time.time()
 
-    extraction_list = [] # for plotting without animated plot and OSPA calcs
+    tracemalloc.start()
+
+    # extraction_list = [] # for plotting without animated plot and OSPA calcs
 
     if animated_plots:
         fig, ax = plt.subplots(1,1)
@@ -160,12 +163,10 @@ def test_phds(
         
         filter.predict(t, filt_args=(dt,)) 
         filter.correct(timestep=t,meas_in=measurements[kk]) 
-        filter.cleanup(enable_merge=True) 
-        mix = filter.extracted_mixture[-1]  # last extracted mixture in list
-
-        extraction_list.append(mix)
+        filter.cleanup(enable_merge=True)  
 
         if animated_plots:
+            mix = filter.extracted_mixture[-1]  # last extracted mixture in list
             ax.clear()
             ax.plot([0],[0])
             ax.set_xlim((0,129))
@@ -178,6 +179,14 @@ def test_phds(
 
     end = time.time() # Putting this before static plot so it doesn't affect the time ran
 
+    current, peak = tracemalloc.get_traced_memory()
+
+    print(f"Current memory usage: {current / 10**6} MB; Peak: {peak / 10**6} MB")
+
+    tracemalloc.stop()
+
+    out["PeakMemory"] = peak
+
     if static_plots:
         fig, ax = plt.subplots(1,1)
         fig.set_figheight(9)
@@ -188,25 +197,22 @@ def test_phds(
         
         ax.grid()
 
-        for idx, g in enumerate(extraction_list):
+        for idx, g in enumerate(filter.extracted_mixture):
             if idx % extent_plot_step == 0 and g is not None:
                 g.plot_confidence_extents(h=0.95, plt_inds=[0, 1], ax=ax, edgecolor='r', linewidth=1.5)
 
-        extraction_list[-1].plot_confidence_extents(h=0.95, plt_inds=[0, 1], ax=ax, edgecolor='r', linewidth=1.5)
+        filter.extracted_mixture[-1].plot_confidence_extents(h=0.95, plt_inds=[0, 1], ax=ax, edgecolor='r', linewidth=1.5)
 
         for ggiw_lst in truth_model_list:
             for idx, g in enumerate(ggiw_lst):
                 if idx % extent_plot_step == 0 and g is not None:
-                    g.plot_confidence_extents(h=0, plt_inds=[0, 1], ax=ax, edgecolor='k', linewidth=1.5)
-
-        # plt.savefig("ProbabilityHypothesisDensityFilterResults.png")
-        # plt.show()
+                    g.plot_confidence_extents(h=0, plt_inds=[0, 1], ax=ax, edgecolor='k', linewidth=1.5) 
 
         out["static"] = plt.gcf()
 
     time_ran = end-start
 
-    print(f"Time taken to run: {round(time_ran,4)} seconds ")
+    print(f"Time taken to run: {round(time_ran,4)} seconds \n")
 
     if animated_plots:
         print("Note: Time taken to run will be off due to plotting!")
@@ -218,25 +224,13 @@ def test_phds(
         for target in truth_model_list:
             for t, ggiw in enumerate(target):
                 true_ggiws[t].append(ggiw)
-                truth_states[t].append(ggiw.mean) 
-
-        # truth_states = truth_states[0:-1] # Needed to be trimmed for whatever reason to match with filter time steps
-
-        # true_ggiws = true_ggiws[0:-1]
-
-        # filter.calculate_ospa(truth=truth_states,c=5,p=1)
+                truth_states[t].append(ggiw.mean)  
  
         filter.calculate_extended_ospa(truth=true_ggiws, c=5, p=1, 
                                        c_gamma=50, c_x=10, c_X=5, w_gamma=1, w_x=1, w_X=1)
 
-        figs = filter.plot_extended_ospa()
-
-        # plt.show()
-
-        out["ospa"] = plt.gcf()
-
-        # figs["OSPA"].savefig("PHD-OSPA.png")
-        # figs["OSPA_subs"].savefig("PHD-OSPA_subs.png")
+        figs = filter.plot_extended_ospa() 
+        out["ospa"] = plt.gcf() 
 
     out["time"] = time_ran
 
@@ -255,6 +249,8 @@ def test_glmbs(
     """Tests both glmb or jglmb, since both rely on same equations"""
 
     out = dict()
+
+    tracemalloc.start()
 
     start = time.time()
 
@@ -283,6 +279,14 @@ def test_glmbs(
 
     end = time.time()
 
+    current, peak = tracemalloc.get_traced_memory()
+
+    print(f"Current memory usage: {current / 10**6} MB; Peak: {peak / 10**6} MB")
+
+    tracemalloc.stop()
+
+    out["PeakMemory"] = peak
+
     if static_plots:
         fig, ax = plt.subplots(1,1)
         fig.set_figheight(9)
@@ -300,7 +304,7 @@ def test_glmbs(
 
     time_ran = end-start
 
-    print(f"Time taken to run: {round(time_ran,4)} seconds ")
+    print(f"Time taken to run: {round(time_ran,4)} seconds \n")
 
     if animated_plots:
         print("Note: Time taken to run will be off due to plotting!")
@@ -367,5 +371,8 @@ if __name__=="__main__":
     glmb_out["static"].savefig("glmb_results.png")
     glmb_out["ospa"].savefig("glmb_ospa.png")
 
-    # test_glmbs(jglmb,time_arr,dt,measurements,truth_model_list,animated_plots=False,static_plots=True)
+    jglmb_out = test_glmbs(jglmb,time_arr,dt,measurements,truth_model_list,animated_plots=False,static_plots=True,ospa=True)
+
+    jglmb_out["static"].savefig("jglmb_results.png") 
+    jglmb_out["ospa"].savefig("jglmb_ospa.png")
     
