@@ -302,14 +302,14 @@ def test_clustering():
 
     tt = 0
 
-    num_agent = 4
+    num_agent = 5
     birth_time = np.array([0, 20])
 
     state_mean = np.array([65.0, 65.0, 0.0, -2.0]).reshape((4,1))
     state_std = np.array([30.0, 30.0, 0.0, 0.1]).reshape((4,1))
 
-    shape_mean = np.array([0, 0, (12 * REAL2PIX), 0, (12 * REAL2PIX), 0]).reshape((6,1)) # Assume average storm diameter of 24km with some variation in shape
-    shape_std = np.array([0,1, 1 * REAL2PIX, 0, 1 * REAL2PIX,0]).reshape((6,1))
+    shape_mean = np.array([0, 0, (20 * REAL2PIX), 0, (20 * REAL2PIX), 0]).reshape((6,1)) # Assume average storm diameter of 24km with some variation in shape
+    shape_std = np.array([0,1, 10 * REAL2PIX, 0, 10 * REAL2PIX,0]).reshape((6,1))
 
     b_model = toyExtendedAgentBirth(num_agent, birth_time, state_mean, state_std, shape_mean, shape_std, rng)
 
@@ -331,23 +331,25 @@ def test_clustering():
     
     meas_gen = _gen_extented_meas(tt, targets, obs_window, rng)
 
-    clustering_params = carbs_clustering.DBSCANParameters(eps=2, min_samples=5, ignore_noise=True)
-    sub_partition_params = carbs_clustering.PoissonSubPartitionParameters()
+    # Create clustering parameter object
+    clustering_params = carbs_clustering.DBSCANParameters(eps=3, min_samples=5, ignore_noise=True)
 
-    clustering = carbs_clustering.MeasurementClustering(clustering_params, sub_partition_params)
+    # Create clustering object using the parameters above
+    clustering = carbs_clustering.MeasurementClustering(clustering_params)
     
+    # Partition a set.
     meas_list = clustering.cluster(meas_gen)
 
-    print(meas_list)
-
     # For visualization
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10,10))
     ax.clear()
     ax.plot([0],[0])
     ax.set_xlim(tuple(obs_window[0,:]))
     ax.set_ylim(tuple(obs_window[1,:]))
+    ax.tick_params(axis='x', labelsize=30)
+    ax.tick_params(axis='y', labelsize=30)
     ax.set_aspect(1)
-    ax = _draw_frame(targets, ax)
+    #ax = _draw_frame(targets, ax)
     #for meas in meas_gen:
     #    ax.scatter(meas[0,:],meas[1,:], 10, "r" ,marker="*")
     for ii in range(len(meas_list)):
@@ -356,7 +358,7 @@ def test_clustering():
         ax.scatter(cluster_array[0,:],cluster_array[1,:], 20 ,marker="*")
         centroid_pos = np.mean(cluster_array, axis=1)
         #ax.scatter(centroid_pos[0] ,centroid_pos[1], 20 ,marker="o")
-        ax.text(centroid_pos[0] ,centroid_pos[1], str(ii),dict(size=20))
+        ax.text(centroid_pos[0] ,centroid_pos[1]+1, str(ii),dict(size=20))
 
 
 
